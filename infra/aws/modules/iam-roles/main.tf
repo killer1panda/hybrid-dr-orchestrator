@@ -100,3 +100,78 @@ resource "aws_iam_role_policy" "orchestrator_policy" {
     ]
   })
 }
+
+# Data source for current account ID
+data "aws_caller_identity" "current" {}
+
+# GitHub Actions OIDC Read-Only Planning Role (No apply from CI)
+resource "aws_iam_role" "github_actions_readonly" {
+  name = "dr-github-actions-readonly"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect = "Allow"
+      Principal = {
+        Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
+      }
+      Condition = {
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:killer1panda/hybrid-dr-orchestrator:*"
+        }
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+      }
+    }]
+  })
+
+  tags = {
+    Role         = "ci-readonly-planner"
+    AutoTeardown = "false"
+  }
+}
+
+resource "aws_iam_role_policy" "github_actions_readonly_policy" {
+  name = "dr-github-actions-readonly-policy"
+  role = aws_iam_role.github_actions_readonly.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ReadOnlyInspection"
+        Effect = "Allow"
+        Action = [
+          "ec2:Describe*",
+          "s3:Get*",
+          "s3:List*",
+          "route53:Get*",
+          "route53:List*",
+          "ssm:Get*",
+          "ssm:Describe*",
+          "iam:Get*",
+          "iam:List*"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "DenyMutations"
+        Effect = "Deny"
+        Action = [
+          "ec2:RunInstances",
+          "ec2:TerminateInstances",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "route53:ChangeResourceRecordSets",
+          "ssm:PutParameter",
+          "iam:Create*",
+          "iam:Delete*"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+

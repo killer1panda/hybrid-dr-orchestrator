@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: 'Hybrid DR Dashboards'
+    orgId: 1
+    folder: 'Disaster Recovery'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

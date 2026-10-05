@@ -1,0 +1,52 @@
+groups:
+  - name: hybrid_dr_alerts
+    rules:
+      - alert: OnPremApplicationDown
+        expr: probe_success{instance="http://onprem-web/healthz"} == 0
+        for: 15s
+        labels:
+          severity: critical
+          signal_class: application
+        annotations:
+          summary: "On-premises application health endpoint is unreachable"
+          description: "HTTP GET /healthz failed for over 15 seconds. Application container or reverse proxy may be down."
+
+      - alert: OnPremTcpSocketDown
+        expr: probe_success{instance="onprem-web:80"} == 0
+        for: 15s
+        labels:
+          severity: critical
+          signal_class: network_tcp
+        annotations:
+          summary: "On-premises TCP port 80 is closed or dropping packets"
+          description: "TCP connection to onprem-web:80 timed out or was refused for over 15 seconds."
+
+      - alert: OnPremDatabaseDown
+        expr: probe_success{instance="onprem-db:5432"} == 0
+        for: 15s
+        labels:
+          severity: critical
+          signal_class: data
+        annotations:
+          summary: "On-premises PostgreSQL TCP port 5432 is unreachable"
+          description: "TCP connection to PostgreSQL container failed for over 15 seconds."
+
+      - alert: QuorumDisasterImminent
+        expr: (probe_success{instance="http://onprem-web/healthz"} == 0) and (probe_success{instance="onprem-web:80"} == 0)
+        for: 15s
+        labels:
+          severity: disaster
+          signal_class: multi_domain_quorum
+        annotations:
+          summary: "Multi-signal quorum criteria met for automatic cloud failover"
+          description: "Both Layer 7 HTTP and Layer 4 TCP signals have failed concurrently. Automated orchestrator failover triggered."
+
+      - alert: BackupFreshnessDegraded
+        expr: time() - s3_last_successful_backup_timestamp_seconds > 604800
+        for: 1h
+        labels:
+          severity: warning
+          signal_class: backup_freshness
+        annotations:
+          summary: "S3 base backup age exceeds 7 days"
+          description: "No new full base backup has been successfully uploaded to S3 in the last 7 days."

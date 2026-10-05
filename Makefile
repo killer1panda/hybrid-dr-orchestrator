@@ -10,8 +10,13 @@ help:
 	@echo "  make drill      - Run simulated DR drill (dry-run mode)"
 	@echo "  make drill-live - Run live automated DR drill with cloud failover"
 	@echo "  make failback   - Reverse-sync data to on-prem, restore DNS, and teardown AWS replica"
+	@echo "  make monitoring-up   - Launch Prometheus, Alertmanager, Grafana stack"
+	@echo "  make monitoring-down - Stop monitoring stack"
+	@echo "  make lint-all   - Run all linters (terraform, ruff, mypy, ansible)"
+	@echo "  make security-scan   - Run gitleaks secret detection across repo"
 	@echo "  make cost-audit - Audit active AWS resources tagged Project=hybrid-dr"
 	@echo "  make teardown   - Teardown ephemeral DR replica resources (preserves persistent foundation)"
+
 
 lab-up:
 	docker compose -f infra/onprem/docker-compose.yml up -d --build
@@ -110,4 +115,36 @@ chaos-kill:
 
 chaos-net:
 	@./scripts/chaos_network_drop.sh --dry-run
+
+# --- Phase 7: Observability, CI/CD and Security Targets ---
+
+.PHONY: monitoring-up monitoring-down lint-all security-scan
+monitoring-up:
+	@echo "Starting Prometheus, Alertmanager, and Grafana stack..."
+	docker compose -f infra/monitoring/docker-compose.yml up -d
+	@echo "Grafana accessible at http://localhost:3000 (admin / admin)"
+	@echo "Prometheus accessible at http://localhost:9090"
+	@echo "Alertmanager accessible at http://localhost:9093"
+
+monitoring-down:
+	@echo "Stopping monitoring stack..."
+	docker compose -f infra/monitoring/docker-compose.yml down
+
+lint-all:
+	@echo "==> Checking Terraform formatting..."
+	terraform fmt -check -recursive
+	@echo "==> Running Ruff formatting and linting..."
+	cd orchestrator && ./venv/bin/ruff format --check src tests && ./venv/bin/ruff check src tests
+	@echo "==> Running Mypy strict type checking..."
+	cd orchestrator && ./venv/bin/mypy --strict src tests
+	@echo "==> Running Ansible syntax checks..."
+	cd ansible && ansible-playbook playbooks/site.yml --syntax-check
+	cd ansible && ansible-playbook playbooks/restore_db.yml --syntax-check
+	cd ansible && ansible-playbook playbooks/smoke_tests.yml --syntax-check
+	cd ansible && ansible-playbook playbooks/failback.yml --syntax-check
+	@echo "✅ All codebases passed linting & type checks."
+
+security-scan:
+	@echo "==> Running Gitleaks secret detection across repository..."
+	gitleaks dir . -v
 

@@ -95,9 +95,8 @@ cd "$REPO_ROOT/infra/onprem"
 if [[ "$TARGET" == "all" ]]; then
   docker compose stop
 else
-  # Map inventory name to docker compose service name
-  SERVICE_NAME="${TARGET#onprem-}"
-  docker compose stop "$SERVICE_NAME"
+  docker compose stop "$TARGET" || docker stop "$TARGET"
 fi
+
 
 echo "💥 Chaos injected: '$TARGET' is DOWN. Python Orchestrator should now detect quorum failure."
