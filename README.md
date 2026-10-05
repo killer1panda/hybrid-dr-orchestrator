@@ -130,13 +130,19 @@ make monitoring-up
 ```
 *Access Grafana at `http://localhost:3000` (admin/admin), Prometheus at `http://localhost:9090`, Alertmanager at `http://localhost:9093`.*
 
-### 3. Run a Simulated DR Drill
+### 3. Launch Mission Control Web Dashboard
+```bash
+make dashboard
+```
+*Opens real-time SRE Mission Control UI at `http://localhost:8500` displaying live Quorum signals, active FSM state, RPO/RTO telemetry, and one-click drill controls.*
+
+### 4. Run a Simulated DR Drill
 ```bash
 make drill
 ```
 *Injects guarded chaos, triggers the Python orchestrator, verifies all state transitions, and outputs empirical RTO/RPO metrics.*
 
-### 4. Reverse Failback & Cloud Teardown
+### 5. Reverse Failback & Cloud Teardown
 ```bash
 make failback
 make cost-audit
@@ -171,3 +177,5 @@ make cost-audit
 * 📋 **[Disaster Recovery Operational Runbook](docs/runbook.md)**: Automated and emergency manual procedures for failover, failback, state machine recovery, and credential rotation.
 * 🎯 **[5-Minute Video Screencast Demo Script](docs/demo-script.md)**: Timed script and shot list for recruiter and LinkedIn walkthroughs.
 * 🏆 **[Interview Cheat Sheet & Architecture Trade-offs](docs/interview-notes.md)**: 10 in-depth interview questions, verified resume bullets, and design rationales.
+* 📐 **[Enterprise Evolution Strategy & Ultrareview Roadmap](docs/dr-enhancements.md)**: Strategic transition to AWS DRS, Aurora CDC via DMS, AWS Step Functions, and Route 53 ARC.
+* 📚 **[Phase-by-Phase Architecture & Interview Log](docs/phase-architecture-log.md)**: Unabridged chronological engineering decision logs across Phases 0–8.

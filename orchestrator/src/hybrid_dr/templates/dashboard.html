@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hybrid DR Orchestrator // Mission Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              850: '#151f32',
+              900: '#0b1329',
+              950: '#060a17'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @keyframes pulse-fast { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .animate-pulse-fast { animation: pulse-fast 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: #0b1329; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col">
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-3">
+    <div class="flex items-center justify-between max-w-7xl mx-auto">
+      <div class="flex items-center space-x-3">
+        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse-fast" id="global-pulse"></div>
+        <div class="text-lg font-bold tracking-wider text-slate-100 flex items-center gap-2">
+          <span>HYBRID CLOUD DR</span>
+          <span class="text-xs px-2 py-0.5 rounded font-mono bg-cyan-950 text-cyan-400 border border-cyan-800">MISSION CONTROL</span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4 text-xs font-mono">
+        <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+          <span class="text-slate-400">ACTIVE PRIMARY:</span>
+          <span id="nav-active-site" class="text-emerald-400 font-semibold uppercase">ON-PREM</span>
+        </div>
+        <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+          <span class="text-slate-400">MODE:</span>
+          <span id="nav-dry-run" class="text-amber-400 font-semibold">DRY-RUN SIMULATION</span>
+        </div>
+        <button onclick="toggleRoadmapModal(true)" class="hover:bg-slate-700 bg-slate-800 px-3 py-1.5 rounded-lg border border-cyan-800/60 text-cyan-300 font-semibold transition flex items-center gap-1.5">
+          <span>📐</span> Enterprise Roadmap
+        </button>
+        <button id="refresh-btn" onclick="fetchStatus()" class="hover:bg-slate-700 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 transition">
+          🔄 Refresh
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+    <!-- Row 1: Hero Metrics & State Overview -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <!-- Current State -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+        <div class="text-xs font-mono text-slate-400 tracking-wide uppercase">State Machine</div>
+        <div class="my-2">
+          <span id="metric-state" class="text-2xl font-black font-mono tracking-tight text-cyan-400">IDLE</span>
+        </div>
+        <div class="text-xs text-slate-500 flex items-center justify-between">
+          <span>Target Site:</span>
+          <span id="metric-target-site" class="font-mono text-slate-300">AWS ap-southeast-2</span>
+        </div>
+      </div>
+
+      <!-- Ground-Truth RPO -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+        <div class="text-xs font-mono text-slate-400 tracking-wide uppercase">Measured RPO</div>
+        <div class="my-2 flex items-baseline gap-2">
+          <span id="metric-rpo" class="text-2xl font-black font-mono text-emerald-400">290s</span>
+          <span class="text-xs text-slate-400">/ 300s budget</span>
+        </div>
+        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+          <div id="metric-rpo-bar" class="bg-emerald-500 h-full w-[96%]"></div>
+        </div>
+      </div>
+
+      <!-- Verified RTO Benchmark -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+        <div class="text-xs font-mono text-slate-400 tracking-wide uppercase">RTO Benchmark</div>
+        <div class="my-2 flex items-baseline gap-2">
+          <span class="text-2xl font-black font-mono text-cyan-300">6m 45s</span>
+          <span class="text-xs text-slate-400">Golden AMI</span>
+        </div>
+        <div class="text-xs text-slate-500 flex items-center justify-between">
+          <span>Cold Provisioning:</span>
+          <span class="font-mono text-slate-300">21m 02s</span>
+        </div>
+      </div>
+
+      <!-- FinOps Spend Ledger -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+        <div class="text-xs font-mono text-slate-400 tracking-wide uppercase">Standing Compute Cost</div>
+        <div class="my-2 flex items-baseline gap-2">
+          <span class="text-2xl font-black font-mono text-emerald-400">$0.00</span>
+          <span class="text-xs text-slate-400">/ month</span>
+        </div>
+        <div class="text-xs text-slate-500 flex items-center justify-between">
+          <span>Persistent S3/DNS:</span>
+          <span class="font-mono text-slate-300">~$0.50 / mo</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: State Machine Visual Pipeline -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold tracking-wider uppercase text-slate-300 font-mono flex items-center gap-2">
+          <span>⚡ State Machine Lifecycle</span>
+          <span class="text-xs px-2 py-0.5 rounded font-mono bg-slate-800 text-slate-400 border border-slate-700">7-Stage FSM</span>
+        </h2>
+        <div class="text-xs font-mono text-slate-400" id="step-detail-label">Current: IDLE (Monitoring)</div>
+      </div>
+      <div class="grid grid-cols-7 gap-2" id="fsm-stepper">
+        <div class="fsm-step bg-cyan-950/60 border border-cyan-500/80 rounded-lg p-2.5 text-center transition" data-state="IDLE">
+          <div class="text-xs font-mono font-bold text-cyan-300">1. IDLE</div>
+          <div class="text-[10px] text-slate-400 mt-1">Normal Health</div>
+        </div>
+        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="FENCING">
+          <div class="text-xs font-mono font-bold text-slate-400">2. FENCING</div>
+          <div class="text-[10px] text-slate-500 mt-1">Lock Primary</div>
+        </div>
+        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="PROVISIONING">
+          <div class="text-xs font-mono font-bold text-slate-400">3. PROVISION</div>
+          <div class="text-[10px] text-slate-500 mt-1">Terraform Cloud</div>
+        </div>
+        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="RESTORING">
+          <div class="text-xs font-mono font-bold text-slate-400">4. RESTORING</div>
+          <div class="text-[10px] text-slate-500 mt-1">S3 PITR Replay</div>
+        </div>
+        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="TESTING">
+          <div class="text-xs font-mono font-bold text-slate-400">5. TESTING</div>
+          <div class="text-[10px] text-slate-500 mt-1">Smoke Tests</div>
+        </div>
+        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="CUTOVER">
+          <div class="text-xs font-mono font-bold text-slate-400">6. CUTOVER</div>
+          <div class="text-[10px] text-slate-500 mt-1">Route 53 DNS</div>
+        </div>
+        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="COMPLETED">
+          <div class="text-xs font-mono font-bold text-slate-400">7. COMPLETED</div>
+          <div class="text-[10px] text-slate-500 mt-1">DR Active</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Hybrid Sites Matrix (Split View) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Site 1: Primary On-Premises Lab -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500" id="onprem-status-dot"></span>
+            <h3 class="text-sm font-bold tracking-wide text-slate-200 uppercase font-mono">Primary Site: On-Premises Lab</h3>
+          </div>
+          <span class="text-xs font-mono bg-slate-800 px-2 py-0.5 rounded text-slate-400 border border-slate-700">192.168.10.0/24</span>
+        </div>
+
+        <div class="space-y-3 font-mono text-xs">
+          <!-- HTTP Probe -->
+          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div>
+              <div class="font-semibold text-slate-200">Layer 7 HTTP Healthz</div>
+              <div class="text-slate-400 text-[11px]">http://localhost:8080/healthz</div>
+            </div>
+            <div class="text-right">
+              <span id="signal-http-badge" class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">200 OK</span>
+              <div id="signal-http-time" class="text-[10px] text-slate-500 mt-0.5">Checked: live</div>
+            </div>
+          </div>
+
+          <!-- TCP Web 80 -->
+          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div>
+              <div class="font-semibold text-slate-200">Layer 4 TCP Ingress</div>
+              <div class="text-slate-400 text-[11px]">127.0.0.1:8080 (Nginx Proxy)</div>
+            </div>
+            <span id="signal-tcp-badge" class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">CONNECTED</span>
+          </div>
+
+          <!-- PostgreSQL 5432 -->
+          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div>
+              <div class="font-semibold text-slate-200">PostgreSQL 16 Engine</div>
+              <div class="text-slate-400 text-[11px]">192.168.10.30:5432 (dr_app)</div>
+            </div>
+            <span id="signal-db-badge" class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">ACTIVE / WAL STREAMING</span>
+          </div>
+
+          <!-- WireGuard Tunnel -->
+          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div>
+              <div class="font-semibold text-slate-200">WireGuard Site-to-Site</div>
+              <div class="text-slate-400 text-[11px]">Interface wg0 (10.99.0.2/24)</div>
+            </div>
+            <span class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-bold">ESTABLISHED</span>
+          </div>
+        </div>
+
+        <div class="pt-2 flex items-center gap-2">
+          <button onclick="injectChaos()" class="flex-1 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/80 px-3 py-2 rounded-lg text-xs font-mono font-semibold transition">
+            💥 Inject Blackout
+          </button>
+          <button onclick="recoverOnprem()" class="flex-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/80 px-3 py-2 rounded-lg text-xs font-mono font-semibold transition">
+            🔄 Recover On-Prem
+          </button>
+        </div>
+      </div>
+
+      <!-- Site 2: Secondary AWS Sydney Replica -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
+            <h3 class="text-sm font-bold tracking-wide text-slate-200 uppercase font-mono">Secondary Site: AWS Sydney Replica</h3>
+          </div>
+          <span class="text-xs font-mono bg-slate-800 px-2 py-0.5 rounded text-slate-400 border border-slate-700">ap-southeast-2</span>
+        </div>
+
+        <div class="space-y-3 font-mono text-xs">
+          <!-- Compute Tier -->
+          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div>
+              <div class="font-semibold text-slate-200">Ephemeral Compute Replica</div>
+              <div class="text-slate-400 text-[11px]">EC2 t3.small (Pilot Light)</div>
+            </div>
+            <span id="aws-ec2-badge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-bold">TERMINATED / $0 COST</span>
+          </div>
+
+          <!-- DNS Route 53 -->
+          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div>
+              <div class="font-semibold text-slate-200">Route 53 DNS Pointer</div>
+              <div class="text-slate-400 text-[11px]">app.dr-lab.internal (TTL: 60s)</div>
+            </div>
+            <span id="aws-dns-badge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-bold">POINTS: ON-PREM</span>
+          </div>
+
+          <!-- SSM Fencing -->
+          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div>
+              <div class="font-semibold text-slate-200">SSM Fencing Parameter</div>
+              <div class="text-slate-400 text-[11px]">/hybrid-dr/active-site</div>
+            </div>
+            <span id="aws-fencing-badge" class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">ONPREM (UNFENCED)</span>
+          </div>
+
+          <!-- S3 Encrypted Backups -->
+          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+            <div>
+              <div class="font-semibold text-slate-200">Encrypted Backup Vault</div>
+              <div class="text-slate-400 text-[11px]">hybrid-dr-backups-758579869433</div>
+            </div>
+            <span class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-bold">AES-256 PBKDF2 / SSE-S3</span>
+          </div>
+        </div>
+
+        <div class="pt-2 flex items-center gap-2">
+          <button onclick="triggerDrill()" class="flex-1 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-800/80 px-3 py-2 rounded-lg text-xs font-mono font-semibold transition">
+            🚀 Run DR Drill
+          </button>
+          <button onclick="triggerFailback()" class="flex-1 bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-800/80 px-3 py-2 rounded-lg text-xs font-mono font-semibold transition">
+            🔄 Execute Failback
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 4: Quorum Consensus & Live Audit Logs -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Quorum Consensus Diagnostics -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+        <h3 class="text-sm font-bold tracking-wide text-slate-200 uppercase font-mono">Quorum Engine Diagnostics</h3>
+        
+        <div class="space-y-3 font-mono text-xs">
+          <div class="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 flex justify-between items-center">
+            <span class="text-slate-400">Consecutive Failures:</span>
+            <span id="quorum-consecutive" class="text-base font-bold text-emerald-400">0 / 3</span>
+          </div>
+          <div class="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 flex justify-between items-center">
+            <span class="text-slate-400">Signal Domains Required:</span>
+            <span class="font-bold text-slate-200">≥ 2 Independent Classes</span>
+          </div>
+          <div class="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 flex justify-between items-center">
+            <span class="text-slate-400">Flapping Cooldown:</span>
+            <span class="font-bold text-slate-200">60s Dampener Active</span>
+          </div>
+          <div class="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 flex justify-between items-center">
+            <span class="text-slate-400">Maintenance Mode:</span>
+            <button id="maintenance-toggle-btn" onclick="toggleMaintenance()" class="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-bold text-xs hover:bg-slate-600">
+              OFF
+            </button>
+          </div>
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-400">
+          💡 <strong>Anti-Flapping Guard:</strong> Requires unanimous sustained failure across L7 application, L4 transport, and push heartbeats before promoting cloud replica.
+        </div>
+      </div>
+
+      <!-- Live Audit Feed -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 lg:col-span-2 flex flex-col">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+          <h3 class="text-sm font-bold tracking-wide text-slate-200 uppercase font-mono">Real-Time Audit Stream</h3>
+          <span class="text-[11px] font-mono text-slate-500">JSONL Telemetry</span>
+        </div>
+        <div id="audit-feed" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs overflow-y-auto max-h-64 space-y-1.5 scrollbar-thin text-slate-300">
+          <div class="text-slate-600">[System] Initializing audit log stream...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800 bg-slate-900/60 px-6 py-4 mt-auto">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between text-xs font-mono text-slate-500 gap-2">
+      <div>Hybrid DR Orchestrator • Zero Standing Compute ($0.00/mo) • SLA: RTO &le; 15m, RPO &le; 5m</div>
+      <div>Account: 758579869433 • Region: ap-southeast-2</div>
+    </div>
+  </footer>
+
+  <script>
+    let isDryRun = true;
+    let isMaintenance = false;
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        // Update header & metrics
+        document.getElementById('metric-state').innerText = data.state;
+        document.getElementById('step-detail-label').innerText = 'Current: ' + data.state;
+        
+        // Update active site
+        const activeSite = data.fencing_active_site || 'onprem';
+        document.getElementById('nav-active-site').innerText = activeSite.toUpperCase();
+        document.getElementById('nav-active-site').className = activeSite === 'aws' 
+          ? 'text-cyan-400 font-semibold uppercase' 
+          : 'text-emerald-400 font-semibold uppercase';
+
+        // Update dry run
+        isDryRun = data.dry_run;
+        document.getElementById('nav-dry-run').innerText = isDryRun ? 'DRY-RUN SIMULATION' : 'LIVE AWS APPLY';
+        document.getElementById('nav-dry-run').className = isDryRun 
+          ? 'text-amber-400 font-semibold' 
+          : 'text-rose-400 font-semibold animate-pulse';
+
+        // Update stepper highlights
+        const steps = ['IDLE', 'FENCING', 'PROVISIONING', 'RESTORING', 'TESTING', 'CUTOVER', 'COMPLETED'];
+        const currentIdx = steps.indexOf(data.state);
+        document.querySelectorAll('.fsm-step').forEach(el => {
+          const s = el.getAttribute('data-state');
+          const idx = steps.indexOf(s);
+          if (s === data.state) {
+            el.className = 'fsm-step bg-cyan-950 border border-cyan-400 rounded-lg p-2.5 text-center shadow-lg shadow-cyan-950';
+            el.querySelector('div').className = 'text-xs font-mono font-bold text-cyan-300 animate-pulse';
+          } else if (idx < currentIdx && currentIdx !== -1) {
+            el.className = 'fsm-step bg-emerald-950/40 border border-emerald-800/60 rounded-lg p-2.5 text-center';
+            el.querySelector('div').className = 'text-xs font-mono font-bold text-emerald-400';
+          } else {
+            el.className = 'fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center';
+            el.querySelector('div').className = 'text-xs font-mono font-bold text-slate-500';
+          }
+        });
+
+        // Update HTTP signal
+        const httpSig = data.signals ? data.signals.find(s => s.name === 'http_healthz') : null;
+        if (httpSig) {
+          const isHealthy = httpSig.status === 'healthy';
+          document.getElementById('signal-http-badge').innerText = isHealthy ? '200 OK' : 'OFFLINE';
+          document.getElementById('signal-http-badge').className = isHealthy 
+            ? 'px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold' 
+            : 'px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800 font-bold';
+          document.getElementById('onprem-status-dot').className = isHealthy ? 'w-2.5 h-2.5 rounded-full bg-emerald-500' : 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
+        }
+
+        // Update Quorum
+        if (data.quorum) {
+          document.getElementById('quorum-consecutive').innerText = data.quorum.consecutive_failures + ' / ' + data.quorum.failure_threshold;
+          document.getElementById('quorum-consecutive').className = data.quorum.consecutive_failures > 0 
+            ? 'text-base font-bold text-rose-400 animate-pulse' 
+            : 'text-base font-bold text-emerald-400';
+        }
+
+        // Update Maintenance toggle
+        isMaintenance = data.maintenance_mode;
+        const mBtn = document.getElementById('maintenance-toggle-btn');
+        mBtn.innerText = isMaintenance ? 'ON (LOCKED)' : 'OFF';
+        mBtn.className = isMaintenance 
+          ? 'px-2 py-0.5 rounded bg-amber-600 text-slate-900 font-bold text-xs hover:bg-amber-500' 
+          : 'px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-bold text-xs hover:bg-slate-600';
+
+        // Update AWS Fencing & DNS
+        const fencingVal = data.fencing_active_site || 'onprem';
+        document.getElementById('aws-fencing-badge').innerText = fencingVal.toUpperCase();
+        document.getElementById('aws-fencing-badge').className = fencingVal === 'aws'
+          ? 'px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800 font-bold'
+          : 'px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold';
+        
+        document.getElementById('aws-dns-badge').innerText = fencingVal === 'aws' ? 'POINTS: AWS EIP' : 'POINTS: ON-PREM';
+
+        // Update EC2 badge
+        const ec2Badge = document.getElementById('aws-ec2-badge');
+        if (data.state === 'IDLE') {
+          ec2Badge.innerText = 'TERMINATED / $0 COST';
+          ec2Badge.className = 'px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-bold';
+        } else {
+          ec2Badge.innerText = 'PROVISIONED / ACTIVE';
+          ec2Badge.className = 'px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-bold';
+        }
+
+      } catch (e) {
+        console.error("Status fetch error:", e);
+      }
+    }
+
+    async function fetchAudit() {
+      try {
+        const res = await fetch('/api/audit');
+        if (!res.ok) return;
+        const logs = await res.json();
+        const feed = document.getElementById('audit-feed');
+        if (logs.length === 0) return;
+        feed.innerHTML = logs.map(l => {
+          const time = l.timestamp || new Date().toISOString();
+          const event = l.event || 'EVENT';
+          const state = l.state || '';
+          return `<div class="border-b border-slate-900/60 pb-1">
+            <span class="text-slate-500">[${time.substring(11, 19)}]</span>
+            <span class="text-cyan-400 font-bold">${event}</span>
+            <span class="text-emerald-400">${state}</span>
+            <span class="text-slate-400 text-[11px]">${JSON.stringify(l.data || {})}</span>
+          </div>`;
+        }).join('');
+      } catch (e) {
+        console.error("Audit fetch error:", e);
+      }
+    }
+
+    async function triggerDrill() {
+      if (!confirm("Initiate Automated Disaster Recovery Drill (dry_run=" + isDryRun + ")?")) return;
+      try {
+        const res = await fetch('/api/drill', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ dry_run: isDryRun })
+        });
+        const d = await res.json();
+        alert("Drill launched: " + d.message);
+        fetchStatus();
+      } catch (e) { alert("Drill failed: " + e); }
+    }
+
+    async function triggerFailback() {
+      if (!confirm("Initiate Reverse Sync Failback and Teardown AWS Replica?")) return;
+      try {
+        const res = await fetch('/api/failback', { method: 'POST' });
+        const d = await res.json();
+        alert("Failback result: " + d.message);
+        fetchStatus();
+      } catch (e) { alert("Failback error: " + e); }
+    }
+
+    async function injectChaos() {
+      if (!confirm("Simulate catastrophic on-premises blackout?")) return;
+      try {
+        const res = await fetch('/api/chaos/onprem', { method: 'POST' });
+        const d = await res.json();
+        alert(d.message);
+        fetchStatus();
+      } catch (e) { alert("Chaos call failed: " + e); }
+    }
+
+    async function recoverOnprem() {
+      try {
+        const res = await fetch('/api/chaos/recover', { method: 'POST' });
+        const d = await res.json();
+        alert(d.message);
+        fetchStatus();
+      } catch (e) { alert("Recover call failed: " + e); }
+    }
+
+    async function toggleMaintenance() {
+      const next = !isMaintenance;
+      try {
+        const res = await fetch('/api/maintenance', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ enabled: next })
+        });
+        const d = await res.json();
+        isMaintenance = d.maintenance_mode;
+        fetchStatus();
+      } catch (e) { alert("Toggle failed: " + e); }
+    }
+
+    function toggleRoadmapModal(show) {
+      const modal = document.getElementById('roadmap-modal');
+      if (show) {
+        modal.classList.remove('hidden');
+      } else {
+        modal.classList.add('hidden');
+      }
+    }
+
+    // Auto-refresh loop
+    fetchStatus();
+    fetchAudit();
+    setInterval(fetchStatus, 2500);
+    setInterval(fetchAudit, 4000);
+  </script>
+
+  <!-- Enterprise Roadmap Modal -->
+  <div id="roadmap-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-850">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">📐</span>
+          <h2 class="text-base font-bold font-mono tracking-wide text-slate-100 uppercase">
+            Enterprise Evolution Strategy & Architectural Roadmap
+          </h2>
+        </div>
+        <button onclick="toggleRoadmapModal(false)" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 py-1">
+          ✕
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto space-y-6 text-sm text-slate-300 font-sans scrollbar-thin">
+        <div class="bg-cyan-950/40 border border-cyan-800/80 rounded-xl p-4 text-xs font-mono text-cyan-200">
+          🎯 <strong>Target SLA Evolution:</strong> RTO &le; 3 minutes (from ~21m cold / ~7m warm), RPO &le; 5 seconds (from ~290s asynchronous WAL), 99.99% multi-region cloud control plane.
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Item 1 -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div class="font-mono text-cyan-400 font-bold text-xs flex items-center gap-1.5">
+              <span>1.</span> AWS Elastic Disaster Recovery (DRS)
+            </div>
+            <p class="text-xs text-slate-400">
+              Replace on-demand Terraform compute creation with continuous block-level storage replication via AWS DRS agents. Drops compute launch RTO to &lt;2 minutes and compute RPO to sub-seconds.
+            </p>
+          </div>
+
+          <!-- Item 2 -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div class="font-mono text-emerald-400 font-bold text-xs flex items-center gap-1.5">
+              <span>2.</span> Continuous CDC (AWS DMS & Aurora Serverless)
+            </div>
+            <p class="text-xs text-slate-400">
+              Evolve from S3 WAL log shipping to continuous Change Data Capture (CDC) via AWS DMS streaming to an Amazon Aurora PostgreSQL Serverless v2 pilot light (0.5 ACU). Drops database RTO to &lt;15 seconds.
+            </p>
+          </div>
+
+          <!-- Item 3 -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div class="font-mono text-purple-400 font-bold text-xs flex items-center gap-1.5">
+              <span>3.</span> AWS Step Functions State Machine
+            </div>
+            <p class="text-xs text-slate-400">
+              Migrate the Python orchestrator into a cloud-native AWS Step Functions state machine. Native exponential backoff, circuit breaking, visual execution tracking, and zero local single point of failure (SPOF).
+            </p>
+          </div>
+
+          <!-- Item 4 -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div class="font-mono text-amber-400 font-bold text-xs flex items-center gap-1.5">
+              <span>4.</span> Route 53 Application Recovery Controller (ARC)
+            </div>
+            <p class="text-xs text-slate-400">
+              Implement ARC Routing Controls for sub-second DNS traffic shifting and Readiness Checks to continuously audit target cloud capacity and replication lag before authorizing failover.
+            </p>
+          </div>
+
+          <!-- Item 5 -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div class="font-mono text-blue-400 font-bold text-xs flex items-center gap-1.5">
+              <span>5.</span> Native Reverse Replication Failback
+            </div>
+            <p class="text-xs text-slate-400">
+              Leverage native DRS reverse block replication and reverse DMS CDC streams to synchronize delta writes back to on-premises while AWS is live, reducing write-freeze downtime to &lt;1.5 seconds.
+            </p>
+          </div>
+
+          <!-- Item 6 -->
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div class="font-mono text-rose-400 font-bold text-xs flex items-center gap-1.5">
+              <span>6.</span> AWS Fault Injection Service (FIS) & Chaos
+            </div>
+            <p class="text-xs text-slate-400">
+              Transition from local bash chaos scripts to AWS FIS and Chaos Mesh to execute automated GameDays in CI with synthetic network blackholes and AWS API latency injection.
+            </p>
+          </div>
+        </div>
+
+        <div class="border-t border-slate-800 pt-4 text-xs font-mono text-slate-500 flex justify-between items-center">
+          <span>Read full document: <code class="text-cyan-400">docs/dr-enhancements.md</code></span>
+          <button onclick="toggleRoadmapModal(false)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-1.5 rounded-lg border border-slate-700">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

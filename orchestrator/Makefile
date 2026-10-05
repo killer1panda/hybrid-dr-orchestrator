@@ -34,3 +34,6 @@ orch-test:
 
 run-dry:
 	PYTHONPATH=src $(PYTHON) -m hybrid_dr.cli drill --dry-run
+
+dashboard:
+	PYTHONPATH=src $(PYTHON) -m hybrid_dr.cli dashboard --host 0.0.0.0 --port 8500

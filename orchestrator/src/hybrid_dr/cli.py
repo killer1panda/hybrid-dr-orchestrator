@@ -59,6 +59,21 @@ def build_parser() -> argparse.ArgumentParser:
     # Subcommand: failback
     subparsers.add_parser("failback", help="Tear down AWS replica and reset state to IDLE")
 
+    # Subcommand: dashboard
+    dash_parser = subparsers.add_parser("dashboard", help="Launch the real-time Web Dashboard UI")
+    dash_parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host address to bind the dashboard server (default: 0.0.0.0)",
+    )
+    dash_parser.add_argument(
+        "--port",
+        type=int,
+        default=8500,
+        help="Port to bind the dashboard server (default: 8500)",
+    )
+
     return parser
 
 
@@ -202,6 +217,15 @@ def cmd_run(config: OrchestratorConfig) -> int:
     return 0
 
 
+def cmd_dashboard(config: OrchestratorConfig, host: str = "0.0.0.0", port: int = 8500) -> int:
+    """Launch the Mission Control Web Dashboard server."""
+    print(f"==> Launching Mission Control Web Dashboard on http://{host}:{port} ...")
+    from .dashboard import run_dashboard_server
+
+    run_dashboard_server(host=host, port=port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -221,6 +245,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_failback(config)
     elif args.command == "run":
         return cmd_run(config)
+    elif args.command == "dashboard":
+        host = str(getattr(args, "host", "0.0.0.0"))
+        port = int(getattr(args, "port", 8500))
+        return cmd_dashboard(config, host=host, port=port)
     return 0
 
 

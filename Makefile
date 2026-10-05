@@ -10,6 +10,7 @@ help:
 	@echo "  make drill      - Run simulated DR drill (dry-run mode)"
 	@echo "  make drill-live - Run live automated DR drill with cloud failover"
 	@echo "  make failback   - Reverse-sync data to on-prem, restore DNS, and teardown AWS replica"
+	@echo "  make dashboard  - Launch real-time Mission Control Web Dashboard UI (http://localhost:8500)"
 	@echo "  make monitoring-up   - Launch Prometheus, Alertmanager, Grafana stack"
 	@echo "  make monitoring-down - Stop monitoring stack"
 	@echo "  make lint-all   - Run all linters (terraform, ruff, mypy, ansible)"
@@ -97,6 +98,11 @@ orch-test:
 
 orch-drill:
 	@cd orchestrator && make run-dry
+
+.PHONY: dashboard
+dashboard:
+	@echo "Launching Mission Control Web Dashboard on http://localhost:8500 ..."
+	@cd orchestrator && PYTHONPATH=src ./venv/bin/python -m hybrid_dr.cli dashboard --host 0.0.0.0 --port 8500
 
 # --- Phase 6: Failback and Chaos Engineering Targets ---
 
