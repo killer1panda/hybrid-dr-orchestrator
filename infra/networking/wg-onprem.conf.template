@@ -1,0 +1,14 @@
+# infra/networking/wg-onprem.conf.template
+# On-Premises Client Gateway behind NAT
+[Interface]
+Address = 10.100.0.2/24
+PrivateKey = ${ONPREM_PRIVATE_KEY}
+DNS = 1.1.1.1
+
+[Peer]
+# AWS WireGuard Endpoint
+PublicKey = ${AWS_PUBLIC_KEY}
+Endpoint = ${AWS_GATEWAY_PUBLIC_IP}:51820
+AllowedIPs = 10.100.0.0/24, 10.200.0.0/16
+# Critical: Keepalive punch through NAT firewalls every 25 seconds
+PersistentKeepalive = 25

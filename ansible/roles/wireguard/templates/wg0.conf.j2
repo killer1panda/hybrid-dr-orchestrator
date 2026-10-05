@@ -1,0 +1,10 @@
+[Interface]
+Address = {{ wireguard_address | default('10.100.0.2/24') }}
+PrivateKey = {{ wireguard_private_key }}
+DNS = {{ wireguard_dns | default('1.1.1.1') }}
+
+[Peer]
+PublicKey = {{ wireguard_peer_public_key }}
+Endpoint = {{ wireguard_peer_endpoint }}:51820
+AllowedIPs = {{ wireguard_allowed_ips | default('10.100.0.0/24, 10.200.0.0/16') }}
+PersistentKeepalive = 25

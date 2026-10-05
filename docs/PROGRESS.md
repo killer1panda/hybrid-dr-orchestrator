@@ -9,7 +9,7 @@ The agent updates this file at the end of every phase.
 | 0 Plan | done | 2026-10-05 | 2026-10-05 | ADR-001..004, architecture.md, cost model |
 | 1 On-prem site | done | 2026-10-05 | 2026-10-05 | lab-inventory.yml, app/, infra/onprem/, Makefile, tests pass |
 | 2 AWS foundation | done | 2026-10-05 | 2026-10-05 | 13 resources applied in ap-southeast-2; native S3 state locking active; IAM negative tests passed; prevent_destroy verified; zero drift confirmed |
-| 3 Network and backups | not started | | | |
+| 3 Network and backups | done | 2026-10-05 | 2026-10-05 | WireGuard keygen & configs; continuous WAL shipper (gzip -> S3); pg_basebackup streaming (4.0MB); automated restore test (test_restore.sh) passed verifying item count=1 and probe freshness; heartbeat publisher tested live (/hybrid-dr/heartbeat/onprem & CloudWatch HybridDR/LabHeartbeat) |
 | 4 DR environment | not started | | | |
 | 5 Orchestrator | not started | | | |
 | 6 Failback and chaos | not started | | | |
@@ -47,6 +47,7 @@ The agent updates this file at the end of every phase.
 | 2026-10-05 | Phase 0: Planning & Documentation | $0.00 | $0.00 | Verified (Docs only; no cloud calls) |
 | 2026-10-05 | Phase 1: On-prem site & 3-tier app | $0.00 | $0.00 | Verified (Local Docker simulation; $0 cloud cost) |
 | 2026-10-05 | Phase 2: AWS Foundation (Standing) | ~$0.93/mo | ~$0.50/mo | Verified standing cost (Route 53 hosted zone $0.50/mo, S3 storage <$0.01 initial) |
+| 2026-10-05 | Phase 3: Network & Backups | <$0.01 | <$0.01 | Verified S3 PUT requests (base backup + 6 WAL files + heartbeat SSM/CW metrics) |
 
 ## Verified facts
 

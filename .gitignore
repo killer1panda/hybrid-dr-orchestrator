@@ -34,6 +34,8 @@ secrets.*.yml
 **/wg*.key
 **/privatekey
 **/presharedkey
+infra/networking/keys/
+*.key
 *.kubeconfig
 
 # Ansible

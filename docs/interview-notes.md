@@ -18,8 +18,9 @@ After every phase the agent appends three bullets: what was built, why this desi
 - **Limits and trade-offs:** Scoped IAM user credentials for on-premises backup shipping require periodic rotation procedures rather than IAM Roles Anywhere with x509 PKI certificates, which was deferred to avoid the $400/mo AWS Private CA fee or running a self-hosted PKI. Route 53 private hosted zone has a fixed $0.50/month fee regardless of query volume.
 
 ## Phase 3
-
-## Phase 4
+- **What was built:** End-to-end continuous hybrid data replication pipeline: zero-leak WireGuard VPN templates with NAT traversal (`PersistentKeepalive = 25`), continuous PostgreSQL WAL shipper (`scripts/archive_wal.sh` with gzip compression directly into S3), full snapshot backup streamer (`scripts/backup_base.sh` streaming `pg_basebackup` directly into S3), automated point-in-time recovery test harness (`scripts/test_restore.sh`), 30-second hybrid heartbeat daemon (`scripts/heartbeat_publisher.py` writing to SSM Parameter `/hybrid-dr/heartbeat/onprem` and CloudWatch), and complete operational runbooks (`docs/runbook.md`).
+- **Why this design:** Continuous WAL archiving decouples replication frequency from snapshot size, allowing us to hit our target RPO <= 60 seconds without running an expensive warm standby replica database. Packaging backups with gzip and streaming directly to S3 avoids local disk exhaustion. The automated restore harness verifies backup integrity on every run, asserting both table counts and the precise timestamp age of the monotonic RPO probe.
+- **Limits and trade-offs:** WAL shipping provides asynchronous replication with a delay equal to the segment size or `archive_timeout` (60s), meaning in an abrupt catastrophic site destruction up to 60s of writes could theoretically be lost (within our 5-minute RPO budget). In synchronous streaming replication (e.g. pgpool or physical standby), RPO would be 0s, but that requires standing compute in AWS and introduces latency penalties on on-prem transaction commits across the WAN.
 
 ## Phase 5
 

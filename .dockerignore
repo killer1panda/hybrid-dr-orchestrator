@@ -1,0 +1,11 @@
+.git
+.terraform
+*.tfstate*
+*.key
+__pycache__
+*.pyc
+.cache
+docs
+ansible
+infra/aws
+scripts
