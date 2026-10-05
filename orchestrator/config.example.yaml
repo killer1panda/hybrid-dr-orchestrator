@@ -1,0 +1,25 @@
+# orchestrator/config.example.yaml
+dry_run: true
+aws_region: "ap-southeast-2"
+aws_profile: "dr-sandbox"
+allowed_account_id: "758579869433"
+rpo_threshold_seconds: 300
+quorum_failure_threshold: 3
+cooldown_seconds: 60
+maintenance_mode: false
+
+onprem:
+  health_url: "http://localhost:8080/healthz"
+  host: "127.0.0.1"
+  port: 8080
+  heartbeat_ssm_param: "/hybrid-dr/heartbeat/onprem"
+  heartbeat_max_age_seconds: 90
+
+aws:
+  route53_hosted_zone_id: "Z0157777J80LB1N4CSX2"
+  dns_record_name: "app.dr-lab.internal"
+  active_site_ssm_param: "/hybrid-dr/active-site"
+  backup_bucket: "hybrid-dr-backups-758579869433-ap-southeast-2"
+
+state_file: "/tmp/hybrid_dr_state.json"
+audit_log_file: "/tmp/hybrid_dr_audit.jsonl"

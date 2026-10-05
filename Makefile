@@ -76,3 +76,16 @@ dr-restore:
 dr-test:
 	@echo "Running smoke tests..."
 	set -a; . infra/onprem/.env; set +a; cd ansible && ansible-playbook playbooks/smoke_tests.yml
+
+# --- Phase 5: Orchestrator Targets ---
+
+.PHONY: orch-setup orch-test orch-drill
+orch-setup:
+	@cd orchestrator && make setup
+
+orch-test:
+	@cd orchestrator && make orch-test
+
+orch-drill:
+	@cd orchestrator && make run-dry
+
