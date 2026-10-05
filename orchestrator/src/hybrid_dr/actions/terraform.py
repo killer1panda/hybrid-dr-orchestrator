@@ -31,7 +31,7 @@ class TerraformAction:
         res = self.runner.run(
             args=cmd,
             cwd=self.repo_root,
-            timeout_seconds=600.0,
+            timeout_seconds=1200.0,
             current_state=FailoverState.PROVISIONING,
         )
         return res.success
@@ -42,7 +42,7 @@ class TerraformAction:
         res = self.runner.run(
             args=cmd,
             cwd=self.repo_root,
-            timeout_seconds=600.0,
+            timeout_seconds=1200.0,
             current_state=FailoverState.COMPLETED,
         )
         return res.success

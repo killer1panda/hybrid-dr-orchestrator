@@ -4,7 +4,15 @@
   become: yes
   tasks:
     - name: Wait for apt lock
-      shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
+      shell: >
+        for i in {1..300}; do
+          if ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+            break
+          fi
+          sleep 1
+        done
+      args:
+        executable: /bin/bash
       changed_when: false
 
     - name: Update apt cache

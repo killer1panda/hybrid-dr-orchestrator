@@ -58,7 +58,16 @@ echo "==> Step 1: Validating on-premises baseline health..."
 if ! curl -sf -m 3 http://localhost:8080/healthz >/dev/null 2>&1; then
   echo "⚠️ On-premises site is not currently running. Starting containers..."
   cd "$REPO_ROOT/infra/onprem" && docker compose up -d
-  sleep 4
+  
+  attempt=0
+  until curl -sf -m 3 http://localhost:8080/healthz >/dev/null 2>&1; do
+    if [ $attempt -ge 30 ]; then
+      echo "❌ Error: On-premises site failed to start within 60 seconds." >&2
+      exit 1
+    fi
+    sleep 2
+    attempt=$((attempt + 1))
+  done
 fi
 
 if curl -sf -m 3 http://localhost:8080/healthz >/dev/null 2>&1; then

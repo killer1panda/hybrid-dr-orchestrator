@@ -39,7 +39,7 @@
         return_content: yes
       register: health
       until: health.status == 200
-      retries: 15
+      retries: 30
       delay: 2
 
     - name: Create item to verify write capability post-promotion

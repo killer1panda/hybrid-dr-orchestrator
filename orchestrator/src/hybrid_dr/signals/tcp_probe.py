@@ -33,7 +33,6 @@ class TcpSignalProvider:
         sock.settimeout(self.timeout_seconds)
         try:
             sock.connect((self.host, self.port))
-            sock.close()
             latency_ms = (time.monotonic() - start) * 1000.0
             return SignalResult(
                 name=self.name,
@@ -51,3 +50,5 @@ class TcpSignalProvider:
                 latency_ms=round(latency_ms, 2),
                 message=f"TCP connection failed to {self.host}:{self.port}: {exc}",
             )
+        finally:
+            sock.close()

@@ -63,10 +63,12 @@ class FencingAction:
                 )
             return True
         except Exception as exc:
+            import traceback
+
             if self.audit:
                 self.audit.log(
                     event="FENCING_FAILED",
                     state=FailoverState.FENCING,
-                    details={"error": str(exc)},
+                    details={"error": str(exc), "traceback": traceback.format_exc()},
                 )
             return False

@@ -61,56 +61,65 @@ class SubprocessRunner:
                 duration_s=0.01,
             )
 
+        import os
+        import signal
+
         start = time.monotonic()
         try:
-            proc = subprocess.run(
+            with subprocess.Popen(
                 args,
                 cwd=cwd,
                 env=env,
                 shell=False,
                 text=True,
-                capture_output=True,
-                timeout=timeout_seconds,
-                check=False,
-            )
-            duration = round(time.monotonic() - start, 3)
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+            ) as proc:
+                try:
+                    stdout, stderr = proc.communicate(timeout=timeout_seconds)
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    stdout, stderr = proc.communicate()
+                    duration = round(time.monotonic() - start, 3)
+                    if self.audit:
+                        self.audit.log(
+                            event="COMMAND_TIMED_OUT",
+                            state=current_state,
+                            details={
+                                "command": cmd_str,
+                                "timeout_seconds": timeout_seconds,
+                                "duration_s": duration,
+                            },
+                        )
+                    return CommandResult(
+                        returncode=124,
+                        stdout=stdout or "",
+                        stderr=f"Process timed out after {timeout_seconds} seconds.",
+                        duration_s=duration,
+                    )
 
-            if self.audit:
-                self.audit.log(
-                    event="COMMAND_EXECUTED",
-                    state=current_state,
-                    details={
-                        "command": cmd_str,
-                        "returncode": proc.returncode,
-                        "duration_s": duration,
-                    },
-                )
+                duration = round(time.monotonic() - start, 3)
+                if self.audit:
+                    self.audit.log(
+                        event="COMMAND_EXECUTED",
+                        state=current_state,
+                        details={
+                            "command": cmd_str,
+                            "returncode": proc.returncode,
+                            "duration_s": duration,
+                        },
+                    )
 
-            return CommandResult(
-                returncode=proc.returncode,
-                stdout=proc.stdout,
-                stderr=proc.stderr,
-                duration_s=duration,
-            )
-        except subprocess.TimeoutExpired as exc:
-            duration = round(time.monotonic() - start, 3)
-            if self.audit:
-                self.audit.log(
-                    event="COMMAND_TIMED_OUT",
-                    state=current_state,
-                    details={
-                        "command": cmd_str,
-                        "timeout_seconds": timeout_seconds,
-                        "duration_s": duration,
-                    },
+                return CommandResult(
+                    returncode=proc.returncode,
+                    stdout=stdout or "",
+                    stderr=stderr or "",
+                    duration_s=duration,
                 )
-            out_str = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
-            return CommandResult(
-                returncode=124,
-                stdout=out_str,
-                stderr=f"Process timed out after {timeout_seconds} seconds.",
-                duration_s=duration,
-            )
         except Exception as exc:
             duration = round(time.monotonic() - start, 3)
             if self.audit:

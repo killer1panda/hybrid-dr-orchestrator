@@ -1,11 +1,12 @@
-import os
 import logging
-from typing import List
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, status
+
+from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from app.database import engine, Base, get_db, verify_db_connection
+
+from app.database import Base, engine, get_db, verify_db_connection
 from app.models import Item, RPOProbe
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -16,7 +17,8 @@ NODE_NAME = os.getenv("NODE_NAME", "onprem-app-1")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting app on node %s; verifying schemas...", NODE_NAME)
-    Base.metadata.create_all(bind=engine)
+    from starlette.concurrency import run_in_threadpool
+    await run_in_threadpool(Base.metadata.create_all, bind=engine)
     yield
     logger.info("Shutting down application...")
 
@@ -53,9 +55,10 @@ def create_item(item_in: ItemCreate, db: Session = Depends(get_db)):
         return ItemResponse(id=item.id, name=item.name, description=item.description, created_at=item.created_at.isoformat())
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Database write error: {exc}")
+        logger.error("Database write error: %s", exc)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
-@app.get("/items", response_model=List[ItemResponse])
+@app.get("/items", response_model=list[ItemResponse])
 def list_items(db: Session = Depends(get_db)):
     items = db.query(Item).order_by(Item.id.desc()).limit(100).all()
     return [ItemResponse(id=it.id, name=it.name, description=it.description, created_at=it.created_at.isoformat()) for it in items]

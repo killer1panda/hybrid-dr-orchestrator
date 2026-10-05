@@ -34,6 +34,7 @@
 
     - name: Download and decrypt base backup
       shell: |
+        set -eo pipefail
         aws s3 cp s3://{{ backup_bucket }}/backups/base/{{ sysid }}/{{ base_name }} - | \
         openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass pass:"{{ encryption_passphrase }}" | \
         tar -xzf - -C {{ db_data }}

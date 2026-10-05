@@ -69,8 +69,12 @@ class FileLeaderLock:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self._fd = fd
             return True
-        except (BlockingIOError, OSError):
-            return False
+        except (BlockingIOError, OSError) as e:
+            import errno
+
+            if e.errno in (errno.EACCES, errno.EAGAIN):
+                return False
+            raise
 
     def release(self) -> None:
         """Release lock and close descriptor."""
@@ -197,9 +201,12 @@ class FailoverStateMachine:
                     error_message=f"Action failed during {self.current_state.value}",
                 )
         except Exception as exc:
+            import traceback
+
+            tb = traceback.format_exc()
             self.transition(
                 FailoverState.FAILED_NEEDS_HUMAN,
-                error_message=f"Exception during {self.current_state.value}: {exc}",
+                error_message=f"Exception during {self.current_state.value}: {exc}\n{tb}",
             )
 
         return self.current_state

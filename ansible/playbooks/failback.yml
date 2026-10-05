@@ -33,7 +33,7 @@
         msg: "Starting reverse data sync from AWS replica ({{ aws_dr_ip }}) to on-premise cluster..."
 
     - name: Start Secure SSH Tunnel to AWS PostgreSQL
-      shell: "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa -N -L 54321:127.0.0.1:5432 ubuntu@{{ aws_dr_ip }} > /dev/null 2>&1 & echo $!"
+      shell: "ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i {{ lookup('env', 'SSH_KEY_PATH') | default('~/.ssh/id_rsa', true) }} -N -L 54321:127.0.0.1:5432 ubuntu@{{ aws_dr_ip }} > /dev/null 2>&1 & echo $!"
       register: ssh_tunnel_proc
       changed_when: false
 

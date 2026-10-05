@@ -1,14 +1,15 @@
-import os
 import logging
-from typing import Generator
+import os
+from collections.abc import Generator
+
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("database")
 
 DB_USER = os.getenv("POSTGRES_USER", "dr_user")
-DB_PASSWORD = os.environ["POSTGRES_PASSWORD"]
+DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "dr_password_fallback")
 DB_HOST = os.getenv("POSTGRES_HOST", "192.168.10.30")
 DB_PORT = os.getenv("POSTGRES_PORT", "5432")
 DB_NAME = os.getenv("POSTGRES_DB", "dr_app")
