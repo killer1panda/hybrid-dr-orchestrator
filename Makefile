@@ -35,3 +35,13 @@ teardown:
 	else \
 		echo "No ephemeral DR root deployed yet. Persistent foundation is preserved."; \
 	fi
+
+.PHONY: backup restore-test wg-keys-check
+backup:
+	@./scripts/backup_base.sh
+
+restore-test:
+	@./scripts/test_restore.sh
+
+wg-keys-check:
+	@./infra/networking/gen_wireguard_keys.sh --check

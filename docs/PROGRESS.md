@@ -9,7 +9,7 @@ The agent updates this file at the end of every phase.
 | 0 Plan | done | 2026-10-05 | 2026-10-05 | ADR-001..004, architecture.md, cost model |
 | 1 On-prem site | done | 2026-10-05 | 2026-10-05 | lab-inventory.yml, app/, infra/onprem/, Makefile, tests pass |
 | 2 AWS foundation | done | 2026-10-05 | 2026-10-05 | 13 resources applied in ap-southeast-2; native S3 state locking active; IAM negative tests passed; prevent_destroy verified; zero drift confirmed |
-| 3 Network and backups | done | 2026-10-05 | 2026-10-05 | WireGuard keygen & configs; continuous WAL shipper (gzip -> S3); pg_basebackup streaming (4.0MB); automated restore test (test_restore.sh) passed verifying item count=1 and probe freshness; heartbeat publisher tested live (/hybrid-dr/heartbeat/onprem & CloudWatch HybridDR/LabHeartbeat) |
+| 3 Network and backups | done | 2026-10-05 | 2026-10-05 | WireGuard keygen verified (wg); AES-256 client-side encryption + gzip; containerized WAL shipper & base backup with per-cluster system ID; scoped backup-writer IAM user with Deny on DeleteObject; automated PITR test passed replaying WAL from S3 with 33s lag and JSONL audit logging |
 | 4 DR environment | not started | | | |
 | 5 Orchestrator | not started | | | |
 | 6 Failback and chaos | not started | | | |

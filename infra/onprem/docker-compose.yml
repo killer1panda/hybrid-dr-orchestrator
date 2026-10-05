@@ -1,4 +1,6 @@
-version: "3.8"
+# infra/onprem/docker-compose.yml
+# Simulated on-prem site. Secrets come from infra/onprem/.env (gitignored); see .env.example.
+# Only onprem-db receives the AWS backup-writer credentials; the app tier never sees them.
 networks:
   dr_onprem_bridge:
     driver: bridge
@@ -9,30 +11,27 @@ networks:
           gateway: 192.168.10.1
 volumes:
   pg_data:
-  pg_wal_archive:
 services:
   onprem-db:
-    image: postgres:16-alpine
+    build:
+      context: ./db
+    image: hybrid-dr/onprem-db:16
     container_name: onprem-db
-    environment:
-      POSTGRES_DB: dr_app
-      POSTGRES_USER: dr_user
-      POSTGRES_PASSWORD: dr_secure_password_2026
+    env_file: .env
     command: >
       postgres
       -c wal_level=replica
       -c archive_mode=on
-      -c archive_command='cp %p /var/lib/postgresql/wal_archive/%f'
+      -c archive_command='/usr/local/bin/archive_wal.sh %p %f'
       -c archive_timeout=60s
       -c max_wal_senders=3
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - pg_wal_archive:/var/lib/postgresql/wal_archive
     networks:
       dr_onprem_bridge:
         ipv4_address: 192.168.10.30
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dr_user -d dr_app"]
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -44,10 +43,10 @@ services:
     container_name: onprem-app
     environment:
       POSTGRES_HOST: 192.168.10.30
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: dr_user
-      POSTGRES_PASSWORD: dr_secure_password_2026
-      POSTGRES_DB: dr_app
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in infra/onprem/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/onprem/.env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in infra/onprem/.env}
       NODE_NAME: onprem-app-1
     depends_on:
       onprem-db:
@@ -64,10 +63,10 @@ services:
     command: ["python", "-m", "app.rpo_probe"]
     environment:
       POSTGRES_HOST: 192.168.10.30
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: dr_user
-      POSTGRES_PASSWORD: dr_secure_password_2026
-      POSTGRES_DB: dr_app
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in infra/onprem/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/onprem/.env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in infra/onprem/.env}
       NODE_NAME: onprem-db-primary
     depends_on:
       onprem-db:

@@ -1,0 +1,4 @@
+# Ignore local uncommitted env file in gitleaks dir scan
+infra/onprem/.env:generic-api-key:3
+infra/onprem/.env:generic-api-key:5
+infra/onprem/.env:aws-access-token:4
