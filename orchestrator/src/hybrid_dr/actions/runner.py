@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
+import typing
 
 from ..interfaces import AuditLogger, FailoverState
 
@@ -32,9 +33,11 @@ class SubprocessRunner:
         self,
         audit: AuditLogger | None = None,
         dry_run: bool = True,
+        output_callback: typing.Callable[[str], None] | None = None,
     ) -> None:
         self.audit = audit
         self.dry_run = dry_run
+        self.output_callback = output_callback
 
     def run(
         self,
@@ -54,36 +57,68 @@ class SubprocessRunner:
                     state=current_state,
                     details={"command": cmd_str, "cwd": str(cwd) if cwd else None},
                 )
+            sim_output = "[DRY-RUN] Command execution simulated successfully.\n"
+            if self.output_callback:
+                self.output_callback(sim_output)
             return CommandResult(
                 returncode=0,
-                stdout="[DRY-RUN] Command execution simulated successfully.\n",
+                stdout=sim_output,
                 stderr="",
                 duration_s=0.01,
             )
 
         import os
         import signal
+        import threading
+
+        full_env = os.environ.copy()
+        if env:
+            full_env.update(env)
 
         start = time.monotonic()
         try:
             with subprocess.Popen(
                 args,
                 cwd=cwd,
-                env=env,
+                env=full_env,
                 shell=False,
                 text=True,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 start_new_session=True,
             ) as proc:
+                captured_lines = []
+                
+                def stream_output() -> None:
+                    if proc.stdout:
+                        for line in iter(proc.stdout.readline, ""):
+                            captured_lines.append(line)
+                            if self.output_callback:
+                                self.output_callback(line)
+
+                stream_thread = threading.Thread(target=stream_output)
+                stream_thread.start()
+
                 try:
-                    stdout, stderr = proc.communicate(timeout=timeout_seconds)
+                    proc.wait(timeout=timeout_seconds)
                 except subprocess.TimeoutExpired:
                     try:
-                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-                    except ProcessLookupError:
+                        if (
+                            hasattr(os, "killpg")
+                            and hasattr(os, "getpgid")
+                            and hasattr(signal, "SIGKILL")
+                        ):
+                            os_killpg = getattr(os, "killpg")
+                            os_getpgid = getattr(os, "getpgid")
+                            os_killpg(os_getpgid(proc.pid), getattr(signal, "SIGKILL"))
+                        else:
+                            proc.kill()
+                    except (ProcessLookupError, OSError):
                         pass
-                    stdout, stderr = proc.communicate()
+                    proc.wait()
+                    stream_thread.join()
+                    
+                    full_output = "".join(captured_lines)
                     duration = round(time.monotonic() - start, 3)
                     if self.audit:
                         self.audit.log(
@@ -97,12 +132,15 @@ class SubprocessRunner:
                         )
                     return CommandResult(
                         returncode=124,
-                        stdout=stdout or "",
+                        stdout=full_output,
                         stderr=f"Process timed out after {timeout_seconds} seconds.",
                         duration_s=duration,
                     )
 
+                stream_thread.join()
+                full_output = "".join(captured_lines)
                 duration = round(time.monotonic() - start, 3)
+                
                 if self.audit:
                     self.audit.log(
                         event="COMMAND_EXECUTED",
@@ -116,8 +154,8 @@ class SubprocessRunner:
 
                 return CommandResult(
                     returncode=proc.returncode,
-                    stdout=stdout or "",
-                    stderr=stderr or "",
+                    stdout=full_output,
+                    stderr="",
                     duration_s=duration,
                 )
         except Exception as exc:

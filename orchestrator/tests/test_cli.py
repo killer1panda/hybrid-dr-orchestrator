@@ -15,8 +15,8 @@ def test_cli_drill_dry_run(tmp_path: Path) -> None:
     config_file.write_text(
         f"""
 dry_run: true
-state_file: "{state_file}"
-audit_log_file: "{audit_file}"
+state_file: "{state_file.as_posix()}"
+audit_log_file: "{audit_file.as_posix()}"
 """,
         encoding="utf-8",
     )
@@ -40,8 +40,8 @@ def test_cli_failback_resets_state(tmp_path: Path) -> None:
     config_file.write_text(
         f"""
 dry_run: true
-state_file: "{state_file}"
-audit_log_file: "{audit_file}"
+state_file: "{state_file.as_posix()}"
+audit_log_file: "{audit_file.as_posix()}"
 """,
         encoding="utf-8",
     )
