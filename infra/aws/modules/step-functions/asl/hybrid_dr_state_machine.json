@@ -1,0 +1,194 @@
+{
+  "Comment": "Hybrid Cloud Disaster Recovery Orchestrator - Enterprise State Machine",
+  "StartAt": "EvaluateQuorum",
+  "States": {
+    "EvaluateQuorum": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:ap-southeast-2:758579869433:function:dr-quorum-evaluator",
+        "Payload": {
+          "ExecutionId.$": "$$.Execution.Id"
+        }
+      },
+      "ResultPath": "$.QuorumResult",
+      "Next": "IsDisasterConfirmed",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.Error",
+          "Next": "FailedNeedsHuman"
+        }
+      ]
+    },
+    "IsDisasterConfirmed": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.QuorumResult.Payload.DisasterConfirmed",
+          "BooleanEquals": true,
+          "Next": "AcquireFencingLock"
+        }
+      ],
+      "Default": "QuorumHealthNormal"
+    },
+    "QuorumHealthNormal": {
+      "Type": "Succeed",
+      "Comment": "On-premises site is healthy. No failover required."
+    },
+    "AcquireFencingLock": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:ssm:putParameter",
+      "Parameters": {
+        "Name": "/hybrid-dr/active-site",
+        "Value": "aws",
+        "Type": "String",
+        "Overwrite": true
+      },
+      "ResultPath": "$.FencingResult",
+      "Next": "NotifyFencingComplete",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.Error",
+          "Next": "FailedNeedsHuman"
+        }
+      ]
+    },
+    "NotifyFencingComplete": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:ap-southeast-2:758579869433:dr-budget-spend-alerts",
+        "Subject": "[HYBRID DR] Primary Site Fenced - Initiating Cloud Provisioning",
+        "Message.$": "$.FencingResult"
+      },
+      "ResultPath": "$.NotificationResult",
+      "Next": "LaunchReplicaCompute"
+    },
+    "LaunchReplicaCompute": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:ap-southeast-2:758579869433:function:dr-compute-launcher",
+        "Payload": {
+          "TargetEnvironment": "ap-southeast-2"
+        }
+      },
+      "ResultPath": "$.ComputeResult",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.Error",
+          "Next": "FailedNeedsHuman"
+        }
+      ],
+      "Next": "WaitForReplicaReady"
+    },
+    "WaitForReplicaReady": {
+      "Type": "Wait",
+      "Seconds": 15,
+      "Next": "ExecuteDataRestore"
+    },
+    "ExecuteDataRestore": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:ap-southeast-2:758579869433:function:dr-data-restorer",
+        "Payload": {
+          "TargetInstanceIp.$": "$.ComputeResult.Payload.InstanceIp",
+          "BackupBucket": "hybrid-dr-backups-758579869433-ap-southeast-2"
+        }
+      },
+      "ResultPath": "$.RestoreResult",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.Error",
+          "Next": "FailedNeedsHuman"
+        }
+      ],
+      "Next": "ExecuteSmokeTests"
+    },
+    "ExecuteSmokeTests": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:ap-southeast-2:758579869433:function:dr-smoke-tester",
+        "Payload": {
+          "EndpointUrl.$": "$.ComputeResult.Payload.HealthUrl"
+        }
+      },
+      "ResultPath": "$.SmokeTestResult",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.Error",
+          "Next": "FailedNeedsHuman"
+        }
+      ],
+      "Next": "AreSmokeTestsPassing"
+    },
+    "AreSmokeTestsPassing": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.SmokeTestResult.Payload.Passed",
+          "BooleanEquals": true,
+          "Next": "ExecuteDnsCutover"
+        }
+      ],
+      "Default": "FailedNeedsHuman"
+    },
+    "ExecuteDnsCutover": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:route53:changeResourceRecordSets",
+      "Parameters": {
+        "HostedZoneId": "Z0157777J80LB1N4CSX2",
+        "ChangeBatch": {
+          "Changes": [
+            {
+              "Action": "UPSERT",
+              "ResourceRecordSet": {
+                "Name": "app.dr-lab.internal",
+                "Type": "A",
+                "TTL": 60,
+                "ResourceRecords": [
+                  {
+                    "Value.$": "$.ComputeResult.Payload.InstanceIp"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "ResultPath": "$.DnsResult",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.Error",
+          "Next": "FailedNeedsHuman"
+        }
+      ],
+      "Next": "FailoverCompleted"
+    },
+    "FailoverCompleted": {
+      "Type": "Succeed",
+      "Comment": "Disaster recovery failover successfully completed."
+    },
+    "FailedNeedsHuman": {
+      "Type": "Fail",
+      "Error": "FailoverFailedNeedsHuman",
+      "Cause": "One or more critical recovery steps failed. Requires immediate SRE intervention."
+    }
+  }
+}

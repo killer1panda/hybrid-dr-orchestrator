@@ -15,6 +15,7 @@ The agent updates this file at the end of every phase.
 | 6 Failback and chaos | done | 2026-10-05 | 2026-10-05 | Guarded chaos scripts (`chaos_kill_onprem.sh`, `chaos_network_drop.sh`) verified against lab-inventory.yml with negative host interface rejection; end-to-end drill runner (`scripts/drill.sh`) tested across 3 scenarios (clean outage, stale DNS cache, orchestrator crash & atomic resume); automated failback playbook (`failback.yml`) with delta reverse sync via SSH tunnel and active-site fencing reset; comprehensive benchmarks in `rto-rpo-report.md` and updated `runbook.md`. |
 | 7 CI and security | done | 2026-10-05 | 2026-10-05 | Prometheus v2.50 + Blackbox + Alertmanager + Grafana stack provisioned as code (hybrid-dr.json); live alerts induced and verified (OnPremApplicationDown firing -> resolved); hardened GitHub Actions CI (.github/workflows/ci.yml) with pinned commit SHAs, dependabot.yml, OIDC read-only role; comprehensive security review and STRIDE threat model in docs/security.md; 4/4 S3 public access block flags verified. |
 | 8 Portfolio | done | 2026-10-05 | 2026-10-05 | Recruiter-ready README.md with badges, Mermaid state machine & hybrid topology; 5-minute video demo script (docs/demo-script.md); master interview defense guide with 10 questions and 5 verified resume bullets (docs/interview-notes.md); cleaned starter kit archive (docs/ai-workflow.md). |
+| 9 Cloud-Native Evolution | done | 2026-10-05 | 2026-10-05 | AWS Step Functions ASL & Terraform module; offline ASL simulator; decoupled TerraformRunner; Hypothesis property-based fuzz tests (4 invariants); PostgreSQL continuous logical replication CDC harness passing; 0 standing compute ($0.00) |
 
 
 
@@ -34,6 +35,7 @@ The agent updates this file at the end of every phase.
 | 002 | Control-plane placement | accepted | 2026-10-05 |
 | 003 | DR tier | accepted | 2026-10-05 |
 | 004 | DNS and health checks behind NAT | accepted | 2026-10-05 |
+| 005 | Cloud-native Step Functions & logical CDC architecture | accepted | 2026-10-05 |
 
 ## Risk register
 
@@ -56,6 +58,7 @@ The agent updates this file at the end of every phase.
 | 2026-10-05 | Phase 6: Failback & Multi-Scenario Chaos Drills | $0.00 | $0.00 | Verified (Dry-run automated multi-scenario drills & negative chaos tests; zero cloud spend) |
 | 2026-10-05 | Phase 7: Observability, CI/CD & Security Hardening | $0.00 | $0.00 | Verified (Local Docker Prometheus/Grafana stack; read-only IAM/S3 inspection; $0 cloud cost) |
 | 2026-10-05 | Phase 8: Portfolio Polish & Demo Documentation | $0.00 | $0.00 | Verified (Documentation, demo script & cheat sheet polish; $0 cloud cost) |
+| 2026-10-05 | Phase 9: Cloud-Native Evolution & Resilient Architecture | $0.00 | $0.00 | Verified (ASL simulator, Hypothesis fuzz testing & local CDC harness; 0 active EC2 compute) |
 
 
 

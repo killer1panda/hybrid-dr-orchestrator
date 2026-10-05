@@ -20,7 +20,7 @@ services:
     env_file: .env
     command: >
       postgres
-      -c wal_level=replica
+      -c wal_level=logical
       -c archive_mode=on
       -c archive_command='/usr/local/bin/archive_wal.sh %p %f'
       -c archive_timeout=60s

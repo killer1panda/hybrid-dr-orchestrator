@@ -102,15 +102,22 @@ dr-test:
 
 # --- Phase 5: Orchestrator Targets ---
 
-.PHONY: orch-setup orch-test orch-drill
+.PHONY: orch-setup orch-test orch-drill orch-properties test-cdc
 orch-setup:
 	@cd orchestrator && make setup
 
 orch-test:
 	@cd orchestrator && make orch-test
 
+orch-properties:
+	@cd orchestrator && ./venv/bin/pytest -v tests/test_properties.py
+
 orch-drill:
 	@cd orchestrator && make run-dry
+
+test-cdc:
+	@./scripts/test_logical_cdc.sh
+
 
 .PHONY: dashboard
 dashboard:

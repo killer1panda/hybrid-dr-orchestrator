@@ -86,3 +86,4 @@
 * **Phase 6 (Failback & Chaos):** Guarded chaos tooling (`scripts/chaos_*.sh` with host interface refusal), 3-scenario benchmark drills, and reverse replication failback playbook (`failback.yml`).
 * **Phase 7 (CI & Security):** Prometheus/Grafana observability as code, hardened GitHub Actions CI (pinned action SHAs, OIDC read-only AWS IAM role, Dependabot), and STRIDE threat model in `docs/security.md`.
 * **Phase 8 (Portfolio):** Recruiter-ready `README.md`, 5-minute video demo script (`docs/demo-script.md`), and master interview defense guide.
+* **Phase 9 (Cloud-Native Evolution & Resilience):** Enterprise AWS Step Functions state machine defined as code (ASL JSON) with offline execution simulator; decoupled Terraform CLI runner with structured JSON outputs; Hypothesis property-based fuzz tests proving Quorum mathematical invariants; and continuous PostgreSQL logical replication (CDC) stream harness with zero standing compute cost ($0.00).

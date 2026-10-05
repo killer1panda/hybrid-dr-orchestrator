@@ -12,6 +12,7 @@ from .dns import DnsAction
 from .fencing import FencingAction
 from .runner import SubprocessRunner
 from .terraform import TerraformAction
+from .terraform_runner import TerraformExecutionResult, TerraformRunner
 
 
 class CompositeActionProvider(ActionProvider):
@@ -61,6 +62,8 @@ __all__ = [
     "SubprocessRunner",
     "FencingAction",
     "TerraformAction",
+    "TerraformRunner",
+    "TerraformExecutionResult",
     "AnsibleAction",
     "DnsAction",
     "CompositeActionProvider",
