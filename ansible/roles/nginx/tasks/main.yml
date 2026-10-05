@@ -1,0 +1,31 @@
+---
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+- name: Deploy Nginx reverse proxy configuration
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/sites-available/dr-app.conf
+    mode: '0644'
+  notify:
+    - reload nginx
+
+- name: Enable Nginx site configuration
+  file:
+    src: /etc/nginx/sites-available/dr-app.conf
+    dest: /etc/nginx/sites-enabled/dr-app.conf
+    state: link
+
+- name: Remove default Nginx site configuration
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Ensure Nginx is running and enabled
+  service:
+    name: nginx
+    state: started
+    enabled: yes

@@ -1,0 +1,91 @@
+version: "3.8"
+networks:
+  dr_onprem_bridge:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.10.0/24
+          gateway: 192.168.10.1
+volumes:
+  pg_data:
+  pg_wal_archive:
+services:
+  onprem-db:
+    image: postgres:16-alpine
+    container_name: onprem-db
+    environment:
+      POSTGRES_DB: dr_app
+      POSTGRES_USER: dr_user
+      POSTGRES_PASSWORD: dr_secure_password_2026
+    command: >
+      postgres
+      -c wal_level=replica
+      -c archive_mode=on
+      -c archive_command='cp %p /var/lib/postgresql/wal_archive/%f'
+      -c archive_timeout=60s
+      -c max_wal_senders=3
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - pg_wal_archive:/var/lib/postgresql/wal_archive
+    networks:
+      dr_onprem_bridge:
+        ipv4_address: 192.168.10.30
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dr_user -d dr_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  onprem-app:
+    build:
+      context: ../..
+      dockerfile: app/Dockerfile
+    container_name: onprem-app
+    environment:
+      POSTGRES_HOST: 192.168.10.30
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: dr_user
+      POSTGRES_PASSWORD: dr_secure_password_2026
+      POSTGRES_DB: dr_app
+      NODE_NAME: onprem-app-1
+    depends_on:
+      onprem-db:
+        condition: service_healthy
+    networks:
+      dr_onprem_bridge:
+        ipv4_address: 192.168.10.20
+    restart: unless-stopped
+  onprem-probe:
+    build:
+      context: ../..
+      dockerfile: app/Dockerfile
+    container_name: onprem-probe
+    command: ["python", "-m", "app.rpo_probe"]
+    environment:
+      POSTGRES_HOST: 192.168.10.30
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: dr_user
+      POSTGRES_PASSWORD: dr_secure_password_2026
+      POSTGRES_DB: dr_app
+      NODE_NAME: onprem-db-primary
+    depends_on:
+      onprem-db:
+        condition: service_healthy
+    networks:
+      dr_onprem_bridge:
+        ipv4_address: 192.168.10.25
+    restart: unless-stopped
+  onprem-web:
+    image: nginx:1.25-alpine
+    container_name: onprem-web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - onprem-app
+    networks:
+      dr_onprem_bridge:
+        ipv4_address: 192.168.10.10
+    restart: unless-stopped

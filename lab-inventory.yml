@@ -1,0 +1,29 @@
+version: "1.0"
+environment: "onprem-simulated"
+network:
+  bridge_name: "dr-br0"
+  subnet_cidr: "192.168.10.0/24"
+  gateway_ip: "192.168.10.1"
+  allowed_interfaces: ["dr-br0", "wg0"]
+  forbidden_interfaces: ["en0", "en1", "eth0", "wlan0", "lo"]
+hosts:
+  onprem-gw:
+    role: "wireguard-gateway"
+    ip: "192.168.10.1"
+    tunnel_ip: "10.100.0.2"
+    allowed_chaos_actions: ["network_disconnect", "packet_loss", "latency_injection", "kill_process"]
+  onprem-web:
+    role: "nginx-ingress"
+    ip: "192.168.10.10"
+    ports: [80, 443]
+    allowed_chaos_actions: ["stop_service", "kill_process", "network_disconnect"]
+  onprem-app:
+    role: "fastapi-backend"
+    ip: "192.168.10.20"
+    ports: [8000]
+    allowed_chaos_actions: ["stop_service", "kill_process", "cpu_stress", "network_partition"]
+  onprem-db:
+    role: "postgres-primary"
+    ip: "192.168.10.30"
+    ports: [5432]
+    allowed_chaos_actions: ["stop_service", "kill_process", "freeze_io", "set_read_only", "network_partition"]

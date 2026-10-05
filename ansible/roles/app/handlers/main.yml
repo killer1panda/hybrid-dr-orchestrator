@@ -1,0 +1,5 @@
+---
+- name: restart app
+  systemd:
+    name: dr-app
+    state: restarted

@@ -1,0 +1,19 @@
+all:
+  children:
+    web:
+      hosts:
+        onprem-web:
+          ansible_host: 192.168.10.10
+    app:
+      hosts:
+        onprem-app:
+          ansible_host: 192.168.10.20
+    db:
+      hosts:
+        onprem-db:
+          ansible_host: 192.168.10.30
+  vars:
+    ansible_user: debian
+    ansible_python_interpreter: /usr/bin/python3
+    db_name: dr_app
+    db_user: dr_user

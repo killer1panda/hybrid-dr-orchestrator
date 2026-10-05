@@ -1,0 +1,29 @@
+---
+- name: Install PostgreSQL server and client
+  apt:
+    name:
+      - postgresql-16
+      - postgresql-contrib
+      - python3-psycopg2
+    state: present
+    update_cache: yes
+
+- name: Ensure PostgreSQL service is started and enabled
+  service:
+    name: postgresql
+    state: started
+    enabled: yes
+
+- name: Create database user
+  postgresql_user:
+    name: "{{ db_user }}"
+    password: "dr_secure_password_2026"
+    state: present
+  become_user: postgres
+
+- name: Create application database
+  postgresql_db:
+    name: "{{ db_name }}"
+    owner: "{{ db_user }}"
+    state: present
+  become_user: postgres

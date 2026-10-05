@@ -1,0 +1,52 @@
+---
+- name: Install application prerequisites
+  apt:
+    name:
+      - python3-pip
+      - python3-venv
+      - libpq-dev
+      - gcc
+    state: present
+
+- name: Create application group
+  group:
+    name: appuser
+    state: present
+
+- name: Create application user
+  user:
+    name: appuser
+    group: appuser
+    home: /app
+    shell: /bin/bash
+    state: present
+
+- name: Ensure application directory exists
+  file:
+    path: /app
+    state: directory
+    owner: appuser
+    group: appuser
+    mode: '0755'
+
+- name: Copy application code
+  copy:
+    src: ../../app/
+    dest: /app/
+    owner: appuser
+    group: appuser
+    mode: '0644'
+
+- name: Deploy application systemd service
+  template:
+    src: app.service.j2
+    dest: /etc/systemd/system/dr-app.service
+    mode: '0644'
+  notify:
+    - restart app
+
+- name: Ensure application service is enabled and started
+  systemd:
+    name: dr-app
+    state: started
+    enabled: yes
