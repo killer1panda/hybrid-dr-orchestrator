@@ -1,0 +1,94 @@
+---
+- name: Restore Database from S3
+  hosts: dr
+  become: yes
+  vars:
+    dr_dir: /opt/hybrid-dr
+    db_data: "{{ dr_dir }}/pgdata"
+    backup_bucket: "hybrid-dr-backups-758579869433-ap-southeast-2"
+    encryption_passphrase: "{{ lookup('env', 'BACKUP_ENCRYPTION_PASSPHRASE') }}"
+
+  tasks:
+    - name: Ensure DB data dir is absent
+      file:
+        path: "{{ db_data }}"
+        state: absent
+
+    - name: Create DB data dir
+      file:
+        path: "{{ db_data }}"
+        state: directory
+        owner: "70"
+        group: "70"
+        mode: '0700'
+
+    - name: Get latest backup pointer
+      command: aws s3 cp s3://{{ backup_bucket }}/backups/base/latest.txt -
+      register: latest_pointer
+      changed_when: false
+
+    - name: Parse latest pointer
+      set_fact:
+        sysid: "{{ latest_pointer.stdout.split(' ')[0] }}"
+        base_name: "{{ latest_pointer.stdout.split(' ')[1] }}"
+
+    - name: Download and decrypt base backup
+      shell: |
+        aws s3 cp s3://{{ backup_bucket }}/backups/base/{{ sysid }}/{{ base_name }} - | \
+        openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass pass:"{{ encryption_passphrase }}" | \
+        tar -xzf - -C {{ db_data }}
+      args:
+        executable: /bin/bash
+
+    - name: Create recovery.signal
+      file:
+        path: "{{ db_data }}/recovery.signal"
+        state: touch
+        owner: "70"
+        group: "70"
+        mode: '0600'
+
+    - name: Set postgresql.conf for recovery
+      lineinfile:
+        path: "{{ db_data }}/postgresql.conf"
+        line: "restore_command = '/usr/local/bin/restore_wal.sh %f %p'"
+
+    - name: Ensure correct permissions
+      file:
+        path: "{{ db_data }}"
+        owner: "70"
+        group: "70"
+        recurse: yes
+
+    - name: Stop existing dr-db if running
+      docker_container:
+        name: dr-db
+        image: hybrid-dr/dr-db:16
+        state: stopped
+      ignore_errors: true
+
+    - name: Start Postgres container in recovery
+      docker_container:
+        name: dr-db
+        image: hybrid-dr/dr-db:16
+        state: started
+        restart_policy: always
+        network_mode: host
+        env:
+          POSTGRES_USER: "{{ lookup('env', 'POSTGRES_USER') }}"
+          POSTGRES_DB: "{{ lookup('env', 'POSTGRES_DB') }}"
+          POSTGRES_PASSWORD: "{{ lookup('env', 'POSTGRES_PASSWORD') }}"
+          DR_ALLOWED_ACCOUNT_ID: "{{ lookup('env', 'DR_ALLOWED_ACCOUNT_ID') }}"
+          DR_BACKUP_BUCKET: "{{ backup_bucket }}"
+          DR_SOURCE_SYSTEM_ID: "{{ sysid }}"
+          BACKUP_ENCRYPTION_PASSPHRASE: "{{ encryption_passphrase }}"
+          AWS_DEFAULT_REGION: "ap-southeast-2"
+        volumes:
+          - "{{ db_data }}:/var/lib/postgresql/data"
+
+    - name: Wait for database promotion
+      command: docker exec dr-db psql -U "{{ lookup('env', 'POSTGRES_USER') }}" -d "{{ lookup('env', 'POSTGRES_DB') }}" -tAX -c "SELECT pg_is_in_recovery();"
+      register: recovery_status
+      until: recovery_status.stdout == "f"
+      retries: 60
+      delay: 5

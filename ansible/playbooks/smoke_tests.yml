@@ -1,0 +1,62 @@
+---
+- name: Run Smoke Tests
+  hosts: dr
+  become: yes
+  vars:
+    dr_dir: /opt/hybrid-dr
+  tasks:
+    - name: Build App Image
+      command: docker build -t hybrid-dr/app:latest -f app/Dockerfile .
+      args:
+        chdir: "{{ dr_dir }}"
+
+    - name: Stop existing dr-app if running
+      docker_container:
+        name: dr-app
+        image: hybrid-dr/app:latest
+        state: stopped
+      ignore_errors: true
+
+    - name: Start App Container
+      docker_container:
+        name: dr-app
+        image: hybrid-dr/app:latest
+        state: started
+        restart_policy: always
+        env:
+          POSTGRES_HOST: "172.17.0.1"
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: "{{ lookup('env', 'POSTGRES_USER') }}"
+          POSTGRES_PASSWORD: "{{ lookup('env', 'POSTGRES_PASSWORD') }}"
+          POSTGRES_DB: "{{ lookup('env', 'POSTGRES_DB') }}"
+          NODE_NAME: "aws-dr-replica-1"
+        ports:
+          - "80:8000"
+
+    - name: Wait for app to be ready
+      uri:
+        url: "http://localhost:80/healthz"
+        return_content: yes
+      register: health
+      until: health.status == 200
+      retries: 15
+      delay: 2
+
+    - name: Create item to verify write capability post-promotion
+      uri:
+        url: "http://localhost:80/items"
+        method: POST
+        body_format: json
+        body:
+          name: "dr-failover-item"
+          description: "written post-promotion on AWS DR replica"
+        status_code: 201
+      register: item_created
+
+    - name: Check RPO Lag
+      command: docker exec dr-db psql -U "{{ lookup('env', 'POSTGRES_USER') }}" -d "{{ lookup('env', 'POSTGRES_DB') }}" -tAX -c "SELECT floor(extract(epoch FROM (clock_timestamp() - max(written_at_utc))))::int FROM rpo_probe"
+      register: rpo_lag
+
+    - name: Print RPO
+      debug:
+        msg: "✅ SUCCESS! App is online. RPO Lag measured at {{ rpo_lag.stdout }} seconds."

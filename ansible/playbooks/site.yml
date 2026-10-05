@@ -1,18 +1,65 @@
 ---
-- name: Configure simulated on-premises database tier
-  hosts: db
+- name: Provision DR Environment
+  hosts: dr
   become: yes
-  roles:
-    - postgres
+  tasks:
+    - name: Wait for apt lock
+      shell: while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 1; done
+      changed_when: false
 
-- name: Configure simulated on-premises application tier
-  hosts: app
-  become: yes
-  roles:
-    - app
+    - name: Update apt cache
+      apt: update_cache=yes
 
-- name: Configure simulated on-premises web ingress tier
-  hosts: web
-  become: yes
-  roles:
-    - nginx
+    - name: Install dependencies
+      apt:
+        name: 
+          - docker.io
+          - docker-compose-v2
+          - postgresql-client-common
+          - postgresql-client
+          - awscli
+          - python3-pip
+          - jq
+        state: present
+
+    - name: Ensure python dependencies for docker module
+      pip:
+        name: docker
+        state: present
+        break_system_packages: yes
+
+    - name: Add ubuntu to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Create DR app and db directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+      loop:
+        - /opt/hybrid-dr
+        - /opt/hybrid-dr/app
+        - /opt/hybrid-dr/db
+
+    - name: Copy app code
+      copy:
+        src: "{{ playbook_dir }}/../../app/"
+        dest: /opt/hybrid-dr/app/
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Copy db code
+      copy:
+        src: "{{ playbook_dir }}/../../infra/onprem/db/"
+        dest: /opt/hybrid-dr/db/
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Build DR database image
+      command: docker build -t hybrid-dr/dr-db:16 .
+      args:
+        chdir: /opt/hybrid-dr/db

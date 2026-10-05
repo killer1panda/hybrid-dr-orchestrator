@@ -1,3 +1,5 @@
+SHELL := /bin/bash
+
 .PHONY: help lab-up lab-down lab-status lab-test cost-audit teardown
 help:
 	@echo "Hybrid DR Orchestrator Targets:"
@@ -45,3 +47,32 @@ restore-test:
 
 wg-keys-check:
 	@./infra/networking/gen_wireguard_keys.sh --check
+
+# --- Phase 4: DR Environment Targets ---
+
+.PHONY: dr-up dr-down dr-configure dr-restore dr-test
+
+dr-up:
+	@if [ ! -f ~/.ssh/id_rsa.pub ]; then echo "Generating SSH key for Ansible..."; ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -q -N ""; fi
+	@echo "Deploying AWS DR Environment..."
+	cd infra/aws/envs/dr && \
+	TF_VAR_ssh_public_key="$$(cat ~/.ssh/id_rsa.pub)" terraform init && \
+	TF_VAR_ssh_public_key="$$(cat ~/.ssh/id_rsa.pub)" terraform apply
+
+dr-down:
+	@echo "Checking safety before destroying DR environment..."
+	@cd infra/aws/envs/dr && if terraform state list | grep -q 'aws_s3_bucket'; then echo "FATAL: Persistent state found in DR env! Aborting."; exit 1; fi
+	@echo "Destroying DR Environment..."
+	cd infra/aws/envs/dr && TF_VAR_ssh_public_key="$$(cat ~/.ssh/id_rsa.pub)" terraform destroy
+
+dr-configure:
+	@echo "Configuring DR instance..."
+	set -a; . infra/onprem/.env; set +a; cd ansible && ansible-playbook playbooks/site.yml
+
+dr-restore:
+	@echo "Restoring database on DR instance..."
+	set -a; . infra/onprem/.env; set +a; cd ansible && ansible-playbook playbooks/restore_db.yml
+
+dr-test:
+	@echo "Running smoke tests..."
+	set -a; . infra/onprem/.env; set +a; cd ansible && ansible-playbook playbooks/smoke_tests.yml
