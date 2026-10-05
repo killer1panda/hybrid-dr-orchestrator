@@ -7,16 +7,29 @@ help:
 	@echo "  make lab-down   - Destroy on-prem lab containers"
 	@echo "  make lab-status - Verify healthz status and latest probe"
 	@echo "  make lab-test   - Run CRUD and RPO accumulation test"
-	@echo "  make drill      - Run simulated DR drill (dry-run mode)"
-	@echo "  make drill-live - Run live automated DR drill with cloud failover"
-	@echo "  make failback   - Reverse-sync data to on-prem, restore DNS, and teardown AWS replica"
-	@echo "  make dashboard  - Launch real-time Mission Control Web Dashboard UI (http://localhost:8500)"
+	@echo "  make interview-up   - Spin up full hybrid lab, monitoring & dashboard before interview (90s)"
+	@echo "  make interview-down - Spin down after interview (stops local containers, tears down AWS compute)"
+	@echo "  make zero-cost      - Post-interview absolute TRUE $0.00 purge (purges Route 53 zone and compute)"
+	@echo "  make drill          - Run simulated DR drill (dry-run mode)"
+	@echo "  make drill-live     - Run live automated DR drill with cloud failover"
+	@echo "  make failback       - Reverse-sync data to on-prem, restore DNS, and teardown AWS replica"
+	@echo "  make dashboard      - Launch real-time Mission Control Web Dashboard UI (http://localhost:8500)"
 	@echo "  make monitoring-up   - Launch Prometheus, Alertmanager, Grafana stack"
 	@echo "  make monitoring-down - Stop monitoring stack"
-	@echo "  make lint-all   - Run all linters (terraform, ruff, mypy, ansible)"
-	@echo "  make security-scan   - Run gitleaks secret detection across repo"
-	@echo "  make cost-audit - Audit active AWS resources tagged Project=hybrid-dr"
-	@echo "  make teardown   - Teardown ephemeral DR replica resources (preserves persistent foundation)"
+	@echo "  make lint-all       - Run all linters (terraform, ruff, mypy, ansible)"
+	@echo "  make security-scan  - Run gitleaks secret detection across repo"
+	@echo "  make cost-audit     - Audit active AWS resources tagged Project=hybrid-dr"
+	@echo "  make teardown       - Teardown ephemeral DR replica resources (preserves persistent foundation)"
+
+.PHONY: interview-up interview-down zero-cost
+interview-up:
+	@./scripts/interview_spinup.sh
+
+interview-down:
+	@./scripts/interview_spindown.sh
+
+zero-cost:
+	@./scripts/interview_spindown.sh --zero-cost
 
 
 lab-up:

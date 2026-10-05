@@ -179,3 +179,4 @@ make cost-audit
 * 🏆 **[Interview Cheat Sheet & Architecture Trade-offs](docs/interview-notes.md)**: 10 in-depth interview questions, verified resume bullets, and design rationales.
 * 📐 **[Enterprise Evolution Strategy & Ultrareview Roadmap](docs/dr-enhancements.md)**: Strategic transition to AWS DRS, Aurora CDC via DMS, AWS Step Functions, and Route 53 ARC.
 * 📚 **[Phase-by-Phase Architecture & Interview Log](docs/phase-architecture-log.md)**: Unabridged chronological engineering decision logs across Phases 0–8.
+* ⚡ **[Zero-Cost Interview Playbook](docs/interview-demo-runbook.md)**: Instant 90-second spin-up, live demo sequence, and teardown to TRUE $0.000/mo.
