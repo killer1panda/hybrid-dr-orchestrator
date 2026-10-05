@@ -12,9 +12,10 @@ The agent updates this file at the end of every phase.
 | 3 Network and backups | done | 2026-10-05 | 2026-10-05 | WireGuard keygen verified (wg); AES-256 client-side encryption + gzip; containerized WAL shipper & base backup with per-cluster system ID; scoped backup-writer IAM user with Deny on DeleteObject; automated PITR test passed replaying WAL from S3 with 33s lag and JSONL audit logging |
 | 4 DR environment | done | 2026-10-05 | 2026-10-05 | Terraform DR root applied (15 resources); Ansible configured Docker & app; encrypted base backup + WAL replayed from S3; promotion verified (read_only=false); write verified (id=2 item committed); RPO lag measured at 290s (<300s SLA); teardown verified (15 destroyed, zero leftover compute) |
 | 5 Orchestrator | done | 2026-10-05 | 2026-10-05 | Python 3.11 orchestrator implemented with strict type-checking (mypy --strict passing), ruff lint/format passing, 20 unit tests passing (100% coverage of transition table, legal/illegal transitions, multi-signal quorum truth table, false-alarm rejection, flapping cooldown, atomic state storage, and mid-flight crash recovery). CLI supports status, drill --dry-run, and failback. Zero cloud calls in tests. |
-| 6 Failback and chaos | not started | | | |
+| 6 Failback and chaos | done | 2026-10-05 | 2026-10-05 | Guarded chaos scripts (`chaos_kill_onprem.sh`, `chaos_network_drop.sh`) verified against lab-inventory.yml with negative host interface rejection; end-to-end drill runner (`scripts/drill.sh`) tested across 3 scenarios (clean outage, stale DNS cache, orchestrator crash & atomic resume); automated failback playbook (`failback.yml`) with delta reverse sync via SSH tunnel and active-site fencing reset; comprehensive benchmarks in `rto-rpo-report.md` and updated `runbook.md`. |
 | 7 CI and security | not started | | | |
 | 8 Portfolio | not started | | | |
+
 
 ## 4-week schedule
 
@@ -50,6 +51,7 @@ The agent updates this file at the end of every phase.
 | 2026-10-05 | Phase 3: Network & Backups | <$0.01 | <$0.01 | Verified S3 PUT requests (base backup + 6 WAL files + heartbeat SSM/CW metrics) |
 | 2026-10-05 | Phase 4: DR Environment Replica Drill | ~$0.034/hr | <$0.02 | Verified ephemeral drill (1x t3.small + EIP + EBS runtime 35m, destroyed) |
 | 2026-10-05 | Phase 5: Orchestrator Engine & Tests | $0.00 | $0.00 | Verified (Local unit tests, fake clock & dry-run simulation; zero cloud spend) |
+| 2026-10-05 | Phase 6: Failback & Multi-Scenario Chaos Drills | $0.00 | $0.00 | Verified (Dry-run automated multi-scenario drills & negative chaos tests; zero cloud spend) |
 
 ## Verified facts
 

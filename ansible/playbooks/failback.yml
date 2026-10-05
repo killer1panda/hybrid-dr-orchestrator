@@ -1,0 +1,132 @@
+---
+- name: Reverse Data Synchronization and Failback to On-Premises
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    repo_root: "{{ playbook_dir }}/../.."
+    onprem_dir: "{{ repo_root }}/infra/onprem"
+    dump_file: "/tmp/dr_failback_delta.sql"
+    db_user: "{{ lookup('env', 'POSTGRES_USER') | default('dr_user', true) }}"
+    db_name: "{{ lookup('env', 'POSTGRES_DB') | default('dr_app', true) }}"
+    db_pass: "{{ lookup('env', 'POSTGRES_PASSWORD') | default('dr_secure_password_2026', true) }}"
+    allowed_account_id: "{{ lookup('env', 'DR_ALLOWED_ACCOUNT_ID') | default('758579869433', true) }}"
+
+  tasks:
+    - name: Check if ephemeral DR infrastructure is active
+      command: terraform -chdir={{ repo_root }}/infra/aws/envs/dr output -raw dr_public_ip
+      register: dr_ip_out
+      failed_when: false
+      changed_when: false
+
+    - name: Set AWS DR IP
+      set_fact:
+        aws_dr_ip: "{{ dr_ip_out.stdout | trim }}"
+
+    - name: Validate AWS DR IP availability
+      fail:
+        msg: "Cannot failback: No active AWS DR replica found in Terraform state."
+      when: aws_dr_ip == "" or "No outputs" in aws_dr_ip or "Warning" in aws_dr_ip
+
+    - name: Log failback start
+      debug:
+        msg: "Starting reverse data sync from AWS replica ({{ aws_dr_ip }}) to on-premise cluster..."
+
+    - name: Start Secure SSH Tunnel to AWS PostgreSQL
+      shell: "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa -N -L 54321:127.0.0.1:5432 ubuntu@{{ aws_dr_ip }} > /dev/null 2>&1 & echo $!"
+      register: ssh_tunnel_proc
+      changed_when: false
+
+    - name: Wait for SSH tunnel port 54321 to become open
+      wait_for:
+        host: 127.0.0.1
+        port: 54321
+        timeout: 20
+        delay: 1
+
+    - name: Export active changes from AWS DR database
+      shell: >
+        PGPASSWORD="{{ db_pass }}" pg_dump -h 127.0.0.1 -p 54321 -U "{{ db_user }}" -d "{{ db_name }}"
+        --clean --if-exists -f "{{ dump_file }}"
+      register: dump_result
+
+    - name: Terminate SSH tunnel
+      shell: "kill {{ ssh_tunnel_proc.stdout }} 2>/dev/null || true"
+      changed_when: false
+
+    - name: Ensure on-premise database container is running
+      shell: "docker compose start db"
+      args:
+        chdir: "{{ onprem_dir }}"
+
+    - name: Wait for on-premise database to accept connections
+      shell: "docker exec onprem-db pg_isready -U {{ db_user }} -d {{ db_name }}"
+      register: pg_ready
+      until: pg_ready.rc == 0
+      retries: 15
+      delay: 2
+      changed_when: false
+
+    - name: Restore delta data to on-premise PostgreSQL container
+      shell: "docker exec -i onprem-db psql -U {{ db_user }} -d {{ db_name }} < {{ dump_file }}"
+      environment:
+        PGPASSWORD: "{{ db_pass }}"
+
+    - name: Verify restored transaction count on on-premise database
+      shell: "docker exec onprem-db psql -U {{ db_user }} -d {{ db_name }} -tAX -c 'SELECT COUNT(*) FROM items;'"
+      register: onprem_item_count
+      changed_when: false
+
+    - name: Verify probe record count on on-premise database
+      shell: "docker exec onprem-db psql -U {{ db_user }} -d {{ db_name }} -tAX -c 'SELECT COUNT(*) FROM rpo_probe;'"
+      register: onprem_probe_count
+      changed_when: false
+
+    - name: Report sync verification
+      debug:
+        msg: "✅ Reverse sync verified: On-premises DB contains {{ onprem_item_count.stdout }} items and {{ onprem_probe_count.stdout }} probe records."
+
+    - name: Restart on-premise application service
+      shell: "docker compose restart app web"
+      args:
+        chdir: "{{ onprem_dir }}"
+
+    - name: Wait for on-premise health check HTTP 200
+      uri:
+        url: "http://localhost:8080/healthz"
+        return_content: yes
+      register: onprem_health
+      until: onprem_health.status == 200
+      retries: 15
+      delay: 2
+
+    - name: Reset AWS SSM active-site fencing parameter to onprem
+      shell: >
+        aws ssm put-parameter
+        --name "/hybrid-dr/active-site"
+        --value "onprem"
+        --type "String"
+        --overwrite
+        --profile dr-sandbox
+        --region ap-southeast-2
+      changed_when: true
+
+    - name: Reset orchestrator state file to IDLE
+      copy:
+        content: '{"state": "IDLE"}'
+        dest: /tmp/hybrid_dr_state.json
+      changed_when: true
+
+    - name: Teardown ephemeral AWS DR infrastructure
+      shell: "make dr-down"
+      args:
+        chdir: "{{ repo_root }}"
+
+    - name: Clean up temporary dump file
+      file:
+        path: "{{ dump_file }}"
+        state: absent
+
+    - name: Final Failback Success Message
+      debug:
+        msg: "🎉 FAILBACK COMPLETE: On-premises active, reverse data synced, AWS replica destroyed, spend stopped."

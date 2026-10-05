@@ -7,8 +7,12 @@ help:
 	@echo "  make lab-down   - Destroy on-prem lab containers"
 	@echo "  make lab-status - Verify healthz status and latest probe"
 	@echo "  make lab-test   - Run CRUD and RPO accumulation test"
+	@echo "  make drill      - Run simulated DR drill (dry-run mode)"
+	@echo "  make drill-live - Run live automated DR drill with cloud failover"
+	@echo "  make failback   - Reverse-sync data to on-prem, restore DNS, and teardown AWS replica"
 	@echo "  make cost-audit - Audit active AWS resources tagged Project=hybrid-dr"
 	@echo "  make teardown   - Teardown ephemeral DR replica resources (preserves persistent foundation)"
+
 lab-up:
 	docker compose -f infra/onprem/docker-compose.yml up -d --build
 	@for i in {1..30}; do \
@@ -88,4 +92,22 @@ orch-test:
 
 orch-drill:
 	@cd orchestrator && make run-dry
+
+# --- Phase 6: Failback and Chaos Engineering Targets ---
+
+.PHONY: drill drill-live failback chaos-kill chaos-net
+drill:
+	@./scripts/drill.sh --dry-run
+
+drill-live:
+	@./scripts/drill.sh
+
+failback:
+	set -a; . infra/onprem/.env; set +a; cd ansible && ansible-playbook playbooks/failback.yml
+
+chaos-kill:
+	@./scripts/chaos_kill_onprem.sh --dry-run
+
+chaos-net:
+	@./scripts/chaos_network_drop.sh --dry-run
 
