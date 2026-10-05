@@ -5,6 +5,8 @@
 **Author:** Ajay  
 **Repository:** [killer1panda/hybrid-dr-orchestrator](https://github.com/killer1panda/hybrid-dr-orchestrator)  
 
+> 💡 *Looking for the full chronological per-phase engineering logs (what was built, why this design, limits/trade-offs for Phases 0–8)? See [docs/phase-architecture-log.md](file:///Users/ajay/Downloads/hybrid-dr-orchestrator/docs/phase-architecture-log.md).*
+
 ---
 
 ## 🏆 Top Architectural Trade-offs
@@ -72,6 +74,8 @@
 ---
 
 ## 📚 Phase-by-Phase Architecture Evolution
+
+> 📖 **Full Historical Log:** For the complete, unabridged 3-bullet engineering takeaways (what was built, why this design, and limits/trade-offs) recorded across all phases, see [docs/phase-architecture-log.md](file:///Users/ajay/Downloads/hybrid-dr-orchestrator/docs/phase-architecture-log.md).
 
 * **Phase 0 (Plan):** Defined architecture constraints (RTO $\le$ 15m, RPO $\le$ 5m), accepted ADR-001 through ADR-004, cost model (~$0.50/mo standing, <$0.02/drill).
 * **Phase 1 (On-Premises):** Containerized 3-tier lab (FastAPI, Nginx, PostgreSQL 16) with 1s monotonic RPO probe daemon and strict `lab-inventory.yml` chaos boundaries.
