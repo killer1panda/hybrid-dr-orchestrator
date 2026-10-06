@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import typing
 
 from ..config import OrchestratorConfig
 from ..interfaces import ActionProvider, AuditLogger
@@ -25,9 +26,10 @@ class CompositeActionProvider(ActionProvider):
         audit: AuditLogger | None = None,
         ssm_client: Any | None = None,
         route53_client: Any | None = None,
+        output_callback: typing.Callable[[str], None] | None = None,
     ) -> None:
         self.config = config
-        self.runner = SubprocessRunner(audit=audit, dry_run=config.dry_run)
+        self.runner = SubprocessRunner(audit=audit, dry_run=config.dry_run, output_callback=output_callback)
         self.fencing = FencingAction(
             config=config, runner=self.runner, audit=audit, ssm_client=ssm_client
         )

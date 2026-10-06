@@ -1,0 +1,3 @@
+@echo off
+echo ==> Starting Mock On-Premises 3-Tier Cluster on http://localhost:8080 ...
+"%~dp0orchestrator\venv\Scripts\python.exe" "%~dp0scripts\mock_onprem_service.py" --host 127.0.0.1 --port 8080

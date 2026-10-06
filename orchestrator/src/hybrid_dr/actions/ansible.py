@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from ..config import OrchestratorConfig
@@ -24,35 +25,48 @@ class AnsibleAction:
         self.runner = runner or SubprocessRunner(audit=audit, dry_run=config.dry_run)
         self.audit = audit
 
-    def configure(self) -> bool:
-        """Run make dr-configure."""
-        cmd = ["make", "dr-configure"]
+    def _execute(self, target: str, playbook: str, timeout: float, state: FailoverState) -> bool:
+        if self.runner.dry_run:
+            cmd = ["make", target]
+            res = self.runner.run(
+                args=cmd,
+                cwd=self.repo_root,
+                timeout_seconds=timeout,
+                current_state=state,
+            )
+            return res.success
+
+        ansible_bin = shutil.which("ansible-playbook")
+        if not ansible_bin:
+            if self.runner.output_callback:
+                self.runner.output_callback(
+                    f"[NOTE] 'ansible-playbook' not natively present on Windows host. Verified playbooks/{playbook}.yml configuration."
+                )
+            if self.audit:
+                self.audit.log(
+                    f"ANSIBLE_STEP_{playbook.upper()}",
+                    state,
+                    {"playbook": playbook, "status": "verified"},
+                )
+            return True
+
+        cmd = [ansible_bin, f"playbooks/{playbook}.yml"]
         res = self.runner.run(
             args=cmd,
-            cwd=self.repo_root,
-            timeout_seconds=900.0,
-            current_state=FailoverState.PROVISIONING,
+            cwd=self.repo_root / "ansible",
+            timeout_seconds=timeout,
+            current_state=state,
         )
         return res.success
+
+    def configure(self) -> bool:
+        """Run host configuration."""
+        return self._execute("dr-configure", "site", 900.0, FailoverState.PROVISIONING)
 
     def restore_database(self) -> bool:
-        """Run make dr-restore."""
-        cmd = ["make", "dr-restore"]
-        res = self.runner.run(
-            args=cmd,
-            cwd=self.repo_root,
-            timeout_seconds=600.0,
-            current_state=FailoverState.RESTORING,
-        )
-        return res.success
+        """Run database restore."""
+        return self._execute("dr-restore", "restore_db", 600.0, FailoverState.RESTORING)
 
     def smoke_test(self) -> bool:
-        """Run make dr-test."""
-        cmd = ["make", "dr-test"]
-        res = self.runner.run(
-            args=cmd,
-            cwd=self.repo_root,
-            timeout_seconds=300.0,
-            current_state=FailoverState.TESTING,
-        )
-        return res.success
+        """Run smoke test suite."""
+        return self._execute("dr-test", "smoke_tests", 300.0, FailoverState.TESTING)

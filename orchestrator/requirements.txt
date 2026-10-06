@@ -10,5 +10,5 @@ types-requests>=2.31.0
 fastapi>=0.100.0
 uvicorn>=0.23.0
 jinja2>=3.1.0
-httpx>=0.25.0
+httpx>=0.25.0,<0.28.0
 hypothesis>=6.80.0

@@ -1,620 +1,984 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hybrid DR Orchestrator // Mission Control</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            slate: {
-              850: '#151f32',
-              900: '#0b1329',
-              950: '#060a17'
-            }
-          }
-        }
+  <title>Hybrid DR // Mission Control</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-root: #04060C;
+      --bg-surface: #0A0F1E;
+      --bg-elevated: #111827;
+      --bg-input: #0D1321;
+      --border: rgba(255, 255, 255, 0.06);
+      --border-active: rgba(255, 255, 255, 0.12);
+      --text-primary: #F1F5F9;
+      --text-secondary: #94A3B8;
+      --text-muted: #64748B;
+      --text-dim: #475569;
+      --cyan: #22D3EE;
+      --cyan-dim: rgba(34, 211, 238, 0.15);
+      --emerald: #34D399;
+      --emerald-dim: rgba(52, 211, 153, 0.12);
+      --rose: #FB7185;
+      --rose-dim: rgba(251, 113, 133, 0.12);
+      --amber: #FBBF24;
+      --amber-dim: rgba(251, 191, 36, 0.12);
+      --purple: #A78BFA;
+      --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg-root);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 3px; }
+
+    /* ─── HEADER ─── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10, 15, 30, 0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald), 0 0 20px rgba(52, 211, 153, 0.3);
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--emerald), 0 0 20px rgba(52, 211, 153, 0.3); }
+      50% { opacity: 0.6; box-shadow: 0 0 4px var(--emerald); }
+    }
+    .header-title {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text-primary);
+    }
+    .header-title span { color: var(--text-muted); font-weight: 400; }
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .header-meta .val { color: var(--text-primary); font-weight: 600; margin-left: 6px; }
+    .state-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+    }
+    .state-chip.idle { background: var(--cyan-dim); color: var(--cyan); }
+    .state-chip.active { background: var(--emerald-dim); color: var(--emerald); }
+    .state-chip.danger { background: var(--rose-dim); color: var(--rose); }
+    .state-chip.warning { background: var(--amber-dim); color: var(--amber); }
+
+    /* ─── LAYOUT ─── */
+    .layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 1024px) {
+      .layout {
+        grid-template-columns: 1fr 380px;
+        min-height: calc(100vh - 52px);
       }
     }
-  </script>
-  <style>
-    @keyframes pulse-fast { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-    .animate-pulse-fast { animation: pulse-fast 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
-    .scrollbar-thin::-webkit-scrollbar-track { background: #0b1329; }
-    .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    .main-pane {
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .side-pane {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-surface);
+    }
+    @media (min-width: 1024px) {
+      .side-pane {
+        border-left: 1px solid var(--border);
+        position: sticky;
+        top: 52px;
+        height: calc(100vh - 52px);
+        align-self: start;
+      }
+    }
+
+    /* ─── CARD ─── */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .card-body { padding: 16px; }
+
+    /* ─── KPI ROW ─── */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .kpi {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color 0.2s;
+    }
+    .kpi:hover { border-color: var(--border-active); }
+    .kpi-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .kpi-value {
+      font-family: var(--mono);
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+    .kpi-sub {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+    .kpi-bar {
+      height: 3px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .kpi-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    /* ─── TOPOLOGY ─── */
+    .topo-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 40px;
+      position: relative;
+      min-height: 160px;
+    }
+    .topo-node {
+      width: 200px;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      position: relative;
+      z-index: 2;
+      transition: all 0.5s ease;
+    }
+    .topo-node-icon { font-size: 28px; margin-bottom: 8px; opacity: 0.9; }
+    .topo-node-name {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+    .topo-node-detail {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+    }
+    .topo-node-badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 4px 12px;
+      border-radius: 4px;
+    }
+    .topo-node.primary {
+      background: var(--bg-elevated);
+      border: 1px solid var(--emerald);
+      box-shadow: 0 0 30px rgba(52, 211, 153, 0.08);
+    }
+    .topo-node.primary .topo-node-badge { background: var(--emerald); color: #000; }
+    .topo-node.standby {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      opacity: 0.5;
+    }
+    .topo-node.standby .topo-node-badge { background: rgba(255,255,255,0.06); color: var(--text-dim); }
+    .topo-node.active-aws {
+      background: var(--bg-elevated);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 0 30px rgba(34, 211, 238, 0.08);
+      opacity: 1;
+    }
+    .topo-node.active-aws .topo-node-badge { background: var(--cyan); color: #000; }
+    .topo-node.failing {
+      background: var(--bg-elevated);
+      border: 1px solid var(--rose);
+      box-shadow: 0 0 30px rgba(251, 113, 133, 0.1);
+      animation: pulse-border 1.5s ease-in-out infinite;
+    }
+    .topo-node.failing .topo-node-badge { background: var(--rose); color: #000; }
+    @keyframes pulse-border { 50% { border-color: rgba(251, 113, 133, 0.3); } }
+
+    .topo-line {
+      position: absolute;
+      top: 50%;
+      left: 220px;
+      right: 220px;
+      height: 2px;
+      background: var(--border);
+      transform: translateY(-50%);
+      z-index: 1;
+    }
+    .topo-line-active {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 100%;
+      border-radius: 1px;
+      transition: all 0.8s ease;
+    }
+    .topo-line-active.emerald { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+    .topo-line-active.cyan { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+    .topo-line-active.rose { background: var(--rose); opacity: 0.4; }
+
+    /* ─── SIGNALS ─── */
+    .signal-row {
+      display: flex;
+      gap: 16px;
+      padding: 12px 16px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      align-items: center;
+    }
+    .signal-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .signal-dot.ok { background: var(--emerald); box-shadow: 0 0 6px var(--emerald); }
+    .signal-dot.fail { background: var(--rose); box-shadow: 0 0 6px var(--rose); animation: pulse-glow-rose 1s infinite; }
+    @keyframes pulse-glow-rose { 50% { opacity: 0.4; } }
+
+    /* ─── FSM STEPPER ─── */
+    .fsm-steps {
+      display: flex;
+      gap: 4px;
+    }
+    .fsm-step {
+      flex: 1;
+      padding: 10px 0;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      border-radius: 6px;
+      transition: all 0.3s;
+      background: rgba(255,255,255,0.02);
+      color: var(--text-dim);
+      border: 1px solid transparent;
+    }
+    .fsm-step.current {
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px rgba(34, 211, 238, 0.15);
+    }
+    .fsm-step.done {
+      background: var(--emerald-dim);
+      color: var(--emerald);
+    }
+
+    /* ─── CHART ─── */
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 140px;
+    }
+    .chart-wrap canvas {
+      position: absolute;
+      inset: 0;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    .chart-legend {
+      display: flex;
+      gap: 14px;
+      font-family: var(--mono);
+      font-size: 9px;
+    }
+    .chart-legend-item { display: flex; align-items: center; gap: 5px; }
+    .chart-legend-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    /* ─── SIDE: COMMAND CENTER ─── */
+    .cmd-section {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cmd-section-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .cmd-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: 8px;
+    }
+    .cmd-btn:hover { border-color: var(--border-active); background: rgba(255,255,255,0.04); }
+    .cmd-btn .arrow { color: var(--text-dim); font-size: 14px; transition: transform 0.15s; }
+    .cmd-btn:hover .arrow { transform: translateX(3px); color: var(--text-secondary); }
+
+    .cmd-btn-sm {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      flex: 1;
+    }
+    .cmd-btn-sm:hover { border-color: var(--border-active); color: var(--text-primary); }
+
+    .live-drill-box {
+      background: rgba(251, 113, 133, 0.04);
+      border: 1px solid rgba(251, 113, 133, 0.15);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .live-drill-box .title { font-size: 11px; font-weight: 700; color: var(--rose); margin-bottom: 4px; }
+    .live-drill-box .desc { font-family: var(--mono); font-size: 9px; color: var(--text-dim); margin-bottom: 10px; }
+    .live-drill-row { display: flex; gap: 8px; }
+    .live-drill-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--bg-input);
+      border: 1px solid rgba(251, 113, 133, 0.2);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-family: var(--mono);
+      font-size: 11px;
+      outline: none;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .live-drill-input:focus { border-color: var(--rose); }
+    .live-drill-input::placeholder { color: var(--text-dim); text-transform: none; letter-spacing: normal; }
+    .live-drill-go {
+      padding: 8px 16px;
+      background: var(--rose);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .live-drill-go:hover { opacity: 0.85; }
+
+    /* ─── TERMINAL ─── */
+    .terminal {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: #0A0E19;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .terminal-dots { display: flex; gap: 5px; }
+    .terminal-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .terminal-dot.r { background: #EF4444; }
+    .terminal-dot.y { background: #EAB308; }
+    .terminal-dot.g { background: #22C55E; }
+    .terminal-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-left: 8px;
+    }
+    .terminal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      background: #060810;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.6;
+    }
+    .t-line { display: flex; gap: 8px; margin-bottom: 1px; }
+    .t-ts { color: var(--text-dim); flex-shrink: 0; user-select: none; font-size: 10px; }
+    .t-msg { color: var(--text-secondary); word-break: break-all; }
+    .t-msg.info { color: var(--cyan); }
+    .t-msg.ok { color: var(--emerald); }
+    .t-msg.err { color: var(--rose); }
+    .t-msg.warn { color: var(--amber); }
+    .t-msg.bold { font-weight: 700; }
+    .t-msg.transition { color: var(--cyan); font-weight: 700; }
+    .t-msg.banner {
+      color: var(--text-primary);
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .t-cursor {
+      display: inline-block;
+      width: 7px;
+      height: 14px;
+      background: var(--text-muted);
+      animation: blink 1s step-end infinite;
+      vertical-align: middle;
+      margin-left: 2px;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col">
-  <!-- Top Navigation Bar -->
-  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-50 px-6 py-3">
-    <div class="flex items-center justify-between max-w-7xl mx-auto">
-      <div class="flex items-center space-x-3">
-        <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse-fast" id="global-pulse"></div>
-        <div class="text-lg font-bold tracking-wider text-slate-100 flex items-center gap-2">
-          <span>HYBRID CLOUD DR</span>
-          <span class="text-xs px-2 py-0.5 rounded font-mono bg-cyan-950 text-cyan-400 border border-cyan-800">MISSION CONTROL</span>
-        </div>
-      </div>
-      <div class="flex items-center space-x-4 text-xs font-mono">
-        <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-          <span class="text-slate-400">ACTIVE PRIMARY:</span>
-          <span id="nav-active-site" class="text-emerald-400 font-semibold uppercase">ON-PREM</span>
-        </div>
-        <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-          <span class="text-slate-400">MODE:</span>
-          <span id="nav-dry-run" class="text-amber-400 font-semibold">DRY-RUN SIMULATION</span>
-        </div>
-        <button onclick="toggleRoadmapModal(true)" class="hover:bg-slate-700 bg-slate-800 px-3 py-1.5 rounded-lg border border-cyan-800/60 text-cyan-300 font-semibold transition flex items-center gap-1.5">
-          <span>📐</span> Enterprise Roadmap
-        </button>
-        <button id="refresh-btn" onclick="fetchStatus()" class="hover:bg-slate-700 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 transition">
-          🔄 Refresh
-        </button>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="header-dot" id="global-dot"></div>
+      <div class="header-title">HYBRID CLOUD DR <span>// MISSION CONTROL</span></div>
+    </div>
+    <div class="header-meta">
+      <div>UPTIME<span class="val" id="hd-uptime">00:00:00</span></div>
+      <div>LEADER<span class="val" id="hd-leader">ON-PREM</span></div>
+      <div>
+        <span class="state-chip idle" id="hd-state">IDLE</span>
       </div>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
-    <!-- Row 1: Hero Metrics & State Overview -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <!-- Current State -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
-        <div class="text-xs font-mono text-slate-400 tracking-wide uppercase">State Machine</div>
-        <div class="my-2">
-          <span id="metric-state" class="text-2xl font-black font-mono tracking-tight text-cyan-400">IDLE</span>
+  <!-- Layout -->
+  <div class="layout">
+    
+    <!-- Main Pane -->
+    <div class="main-pane">
+
+      <!-- KPI Row -->
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">RPO (MEASURED)</div>
+          <div class="kpi-value" style="color: var(--emerald);" id="kpi-rpo">290s</div>
+          <div class="kpi-sub">SLA budget: 300s (96.7%)</div>
+          <div class="kpi-bar"><div class="kpi-bar-fill" style="width: 96.7%; background: var(--emerald);"></div></div>
         </div>
-        <div class="text-xs text-slate-500 flex items-center justify-between">
-          <span>Target Site:</span>
-          <span id="metric-target-site" class="font-mono text-slate-300">AWS ap-southeast-2</span>
+        <div class="kpi">
+          <div class="kpi-label">RTO (GOLDEN AMI)</div>
+          <div class="kpi-value" style="color: var(--cyan);">6m 45s</div>
+          <div class="kpi-sub">Cold boot: 21m 12s</div>
+          <div class="kpi-bar"><div class="kpi-bar-fill" style="width: 31.8%; background: var(--cyan);"></div></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">QUORUM HEALTH</div>
+          <div class="kpi-value" id="kpi-quorum" style="color: var(--emerald);">0<span style="font-size: 14px; color: var(--text-dim); font-weight: 400;"> / 3</span></div>
+          <div class="kpi-sub" id="kpi-quorum-label">All signals healthy</div>
+          <div style="display: flex; gap: 4px; margin-top: 4px;">
+            <div id="sig-http" class="signal-dot ok" title="HTTP"></div>
+            <div id="sig-tcp" class="signal-dot ok" title="TCP"></div>
+            <div id="sig-ssm" class="signal-dot ok" title="SSM"></div>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">AWS SPEND</div>
+          <div class="kpi-value" id="kpi-cost" style="color: var(--text-primary);">$0.00</div>
+          <div class="kpi-sub">Standing: $0.00/mo  •  Drill: ~$0.034/hr</div>
         </div>
       </div>
 
-      <!-- Ground-Truth RPO -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
-        <div class="text-xs font-mono text-slate-400 tracking-wide uppercase">Measured RPO</div>
-        <div class="my-2 flex items-baseline gap-2">
-          <span id="metric-rpo" class="text-2xl font-black font-mono text-emerald-400">290s</span>
-          <span class="text-xs text-slate-400">/ 300s budget</span>
+      <!-- Topology -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Network Topology & Data Plane</span>
+          <div class="chart-legend">
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background: var(--emerald);"></div> Primary</div>
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background: var(--text-dim);"></div> Standby</div>
+          </div>
         </div>
-        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-          <div id="metric-rpo-bar" class="bg-emerald-500 h-full w-[96%]"></div>
+        <div class="topo-container">
+          <div class="topo-line">
+            <div class="topo-line-active emerald" id="topo-flow"></div>
+          </div>
+          <div id="node-onprem" class="topo-node primary">
+            <div class="topo-node-icon">🖧</div>
+            <div class="topo-node-name">ON-PREMISE DC</div>
+            <div class="topo-node-detail">192.168.10.0/24</div>
+            <div class="topo-node-badge" id="badge-onprem">ACTIVE LEADER</div>
+          </div>
+          <div style="flex: 1;"></div>
+          <div id="node-aws" class="topo-node standby">
+            <div class="topo-node-icon">☁️</div>
+            <div class="topo-node-name">AWS CLOUD</div>
+            <div class="topo-node-detail">ap-southeast-2 (Sydney)</div>
+            <div class="topo-node-badge" id="badge-aws">WARM STANDBY</div>
+          </div>
+        </div>
+        <div class="signal-row">
+          <div id="sr-http" class="signal-dot ok"></div><span>HTTP L7</span>
+          <span id="sr-http-ms" style="margin-left: auto; color: var(--text-dim);">— ms</span>
+          <span style="margin: 0 6px; color: var(--border);">│</span>
+          <div id="sr-tcp" class="signal-dot ok"></div><span>TCP L4</span>
+          <span id="sr-tcp-ms" style="margin-left: auto; color: var(--text-dim);">— ms</span>
+          <span style="margin: 0 6px; color: var(--border);">│</span>
+          <div id="sr-ssm" class="signal-dot ok"></div><span>SSM Heartbeat</span>
+          <span id="sr-ssm-ms" style="margin-left: auto; color: var(--text-dim);">— ms</span>
         </div>
       </div>
 
-      <!-- Verified RTO Benchmark -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
-        <div class="text-xs font-mono text-slate-400 tracking-wide uppercase">RTO Benchmark</div>
-        <div class="my-2 flex items-baseline gap-2">
-          <span class="text-2xl font-black font-mono text-cyan-300">6m 45s</span>
-          <span class="text-xs text-slate-400">Golden AMI</span>
+      <!-- FSM Stepper -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Failover State Machine (State Machine Lifecycle)</span>
+          <span class="card-title" id="fsm-detail" style="color: var(--cyan);">Stage 1/7 — Monitoring</span>
         </div>
-        <div class="text-xs text-slate-500 flex items-center justify-between">
-          <span>Cold Provisioning:</span>
-          <span class="font-mono text-slate-300">21m 02s</span>
+        <div class="card-body">
+          <div class="fsm-steps" id="fsm-stepper">
+            <div class="fsm-step current" data-state="IDLE">IDLE</div>
+            <div class="fsm-step" data-state="FENCING">FENCE</div>
+            <div class="fsm-step" data-state="PROVISIONING">PROVISION</div>
+            <div class="fsm-step" data-state="RESTORING">RESTORE</div>
+            <div class="fsm-step" data-state="TESTING">TEST</div>
+            <div class="fsm-step" data-state="CUTOVER">CUTOVER</div>
+            <div class="fsm-step" data-state="COMPLETED">DONE</div>
+          </div>
         </div>
       </div>
 
-      <!-- FinOps Spend Ledger -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
-        <div class="text-xs font-mono text-slate-400 tracking-wide uppercase">Standing Compute Cost</div>
-        <div class="my-2 flex items-baseline gap-2">
-          <span class="text-2xl font-black font-mono text-emerald-400">$0.00</span>
-          <span class="text-xs text-slate-400">/ month</span>
+      <!-- Latency Chart -->
+      <div class="card" style="flex: 1; min-height: 0;">
+        <div class="card-header">
+          <span class="card-title">Multi-Signal Probe Latency</span>
+          <div class="chart-legend">
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background: var(--emerald);"></div> HTTP</div>
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background: var(--cyan);"></div> TCP</div>
+            <div class="chart-legend-item"><div class="chart-legend-dot" style="background: var(--purple);"></div> SSM</div>
+          </div>
         </div>
-        <div class="text-xs text-slate-500 flex items-center justify-between">
-          <span>Persistent S3/DNS:</span>
-          <span class="font-mono text-slate-300">~$0.50 / mo</span>
+        <div class="card-body" style="padding: 8px 12px;">
+          <div class="chart-wrap"><canvas id="chart"></canvas></div>
         </div>
       </div>
+
     </div>
 
-    <!-- Row 2: State Machine Visual Pipeline -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-sm font-semibold tracking-wider uppercase text-slate-300 font-mono flex items-center gap-2">
-          <span>⚡ State Machine Lifecycle</span>
-          <span class="text-xs px-2 py-0.5 rounded font-mono bg-slate-800 text-slate-400 border border-slate-700">7-Stage FSM</span>
-        </h2>
-        <div class="text-xs font-mono text-slate-400" id="step-detail-label">Current: IDLE (Monitoring)</div>
-      </div>
-      <div class="grid grid-cols-7 gap-2" id="fsm-stepper">
-        <div class="fsm-step bg-cyan-950/60 border border-cyan-500/80 rounded-lg p-2.5 text-center transition" data-state="IDLE">
-          <div class="text-xs font-mono font-bold text-cyan-300">1. IDLE</div>
-          <div class="text-[10px] text-slate-400 mt-1">Normal Health</div>
-        </div>
-        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="FENCING">
-          <div class="text-xs font-mono font-bold text-slate-400">2. FENCING</div>
-          <div class="text-[10px] text-slate-500 mt-1">Lock Primary</div>
-        </div>
-        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="PROVISIONING">
-          <div class="text-xs font-mono font-bold text-slate-400">3. PROVISION</div>
-          <div class="text-[10px] text-slate-500 mt-1">Terraform Cloud</div>
-        </div>
-        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="RESTORING">
-          <div class="text-xs font-mono font-bold text-slate-400">4. RESTORING</div>
-          <div class="text-[10px] text-slate-500 mt-1">S3 PITR Replay</div>
-        </div>
-        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="TESTING">
-          <div class="text-xs font-mono font-bold text-slate-400">5. TESTING</div>
-          <div class="text-[10px] text-slate-500 mt-1">Smoke Tests</div>
-        </div>
-        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="CUTOVER">
-          <div class="text-xs font-mono font-bold text-slate-400">6. CUTOVER</div>
-          <div class="text-[10px] text-slate-500 mt-1">Route 53 DNS</div>
-        </div>
-        <div class="fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center transition" data-state="COMPLETED">
-          <div class="text-xs font-mono font-bold text-slate-400">7. COMPLETED</div>
-          <div class="text-[10px] text-slate-500 mt-1">DR Active</div>
-        </div>
-      </div>
-    </div>
+    <!-- Side Pane -->
+    <div class="side-pane">
 
-    <!-- Row 3: Hybrid Sites Matrix (Split View) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Site 1: Primary On-Premises Lab -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-          <div class="flex items-center space-x-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500" id="onprem-status-dot"></span>
-            <h3 class="text-sm font-bold tracking-wide text-slate-200 uppercase font-mono">Primary Site: On-Premises Lab</h3>
-          </div>
-          <span class="text-xs font-mono bg-slate-800 px-2 py-0.5 rounded text-slate-400 border border-slate-700">192.168.10.0/24</span>
-        </div>
-
-        <div class="space-y-3 font-mono text-xs">
-          <!-- HTTP Probe -->
-          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <div>
-              <div class="font-semibold text-slate-200">Layer 7 HTTP Healthz</div>
-              <div class="text-slate-400 text-[11px]">http://localhost:8080/healthz</div>
-            </div>
-            <div class="text-right">
-              <span id="signal-http-badge" class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">200 OK</span>
-              <div id="signal-http-time" class="text-[10px] text-slate-500 mt-0.5">Checked: live</div>
-            </div>
-          </div>
-
-          <!-- TCP Web 80 -->
-          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <div>
-              <div class="font-semibold text-slate-200">Layer 4 TCP Ingress</div>
-              <div class="text-slate-400 text-[11px]">127.0.0.1:8080 (Nginx Proxy)</div>
-            </div>
-            <span id="signal-tcp-badge" class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">CONNECTED</span>
-          </div>
-
-          <!-- PostgreSQL 5432 -->
-          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <div>
-              <div class="font-semibold text-slate-200">PostgreSQL 16 Engine</div>
-              <div class="text-slate-400 text-[11px]">192.168.10.30:5432 (dr_app)</div>
-            </div>
-            <span id="signal-db-badge" class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">ACTIVE / WAL STREAMING</span>
-          </div>
-
-          <!-- WireGuard Tunnel -->
-          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <div>
-              <div class="font-semibold text-slate-200">WireGuard Site-to-Site</div>
-              <div class="text-slate-400 text-[11px]">Interface wg0 (10.99.0.2/24)</div>
-            </div>
-            <span class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-bold">ESTABLISHED</span>
-          </div>
-        </div>
-
-        <div class="pt-2 flex items-center gap-2">
-          <button onclick="injectChaos()" class="flex-1 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/80 px-3 py-2 rounded-lg text-xs font-mono font-semibold transition">
-            💥 Inject Blackout
-          </button>
-          <button onclick="recoverOnprem()" class="flex-1 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/80 px-3 py-2 rounded-lg text-xs font-mono font-semibold transition">
-            🔄 Recover On-Prem
-          </button>
-        </div>
-      </div>
-
-      <!-- Site 2: Secondary AWS Sydney Replica -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-          <div class="flex items-center space-x-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
-            <h3 class="text-sm font-bold tracking-wide text-slate-200 uppercase font-mono">Secondary Site: AWS Sydney Replica</h3>
-          </div>
-          <span class="text-xs font-mono bg-slate-800 px-2 py-0.5 rounded text-slate-400 border border-slate-700">ap-southeast-2</span>
-        </div>
-
-        <div class="space-y-3 font-mono text-xs">
-          <!-- Compute Tier -->
-          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <div>
-              <div class="font-semibold text-slate-200">Ephemeral Compute Replica</div>
-              <div class="text-slate-400 text-[11px]">EC2 t3.small (Pilot Light)</div>
-            </div>
-            <span id="aws-ec2-badge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-bold">TERMINATED / $0 COST</span>
-          </div>
-
-          <!-- DNS Route 53 -->
-          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <div>
-              <div class="font-semibold text-slate-200">Route 53 DNS Pointer</div>
-              <div class="text-slate-400 text-[11px]">app.dr-lab.internal (TTL: 60s)</div>
-            </div>
-            <span id="aws-dns-badge" class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-bold">POINTS: ON-PREM</span>
-          </div>
-
-          <!-- SSM Fencing -->
-          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <div>
-              <div class="font-semibold text-slate-200">SSM Fencing Parameter</div>
-              <div class="text-slate-400 text-[11px]">/hybrid-dr/active-site</div>
-            </div>
-            <span id="aws-fencing-badge" class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold">ONPREM (UNFENCED)</span>
-          </div>
-
-          <!-- S3 Encrypted Backups -->
-          <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <div>
-              <div class="font-semibold text-slate-200">Encrypted Backup Vault</div>
-              <div class="text-slate-400 text-[11px]">hybrid-dr-backups-758579869433</div>
-            </div>
-            <span class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-bold">AES-256 PBKDF2 / SSE-S3</span>
-          </div>
-        </div>
-
-        <div class="pt-2 flex items-center gap-2">
-          <button onclick="triggerDrill()" class="flex-1 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-800/80 px-3 py-2 rounded-lg text-xs font-mono font-semibold transition">
-            🚀 Run DR Drill
-          </button>
-          <button onclick="triggerFailback()" class="flex-1 bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-800/80 px-3 py-2 rounded-lg text-xs font-mono font-semibold transition">
-            🔄 Execute Failback
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Row 4: Quorum Consensus & Live Audit Logs -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Quorum Consensus Diagnostics -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-        <h3 class="text-sm font-bold tracking-wide text-slate-200 uppercase font-mono">Quorum Engine Diagnostics</h3>
-        
-        <div class="space-y-3 font-mono text-xs">
-          <div class="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 flex justify-between items-center">
-            <span class="text-slate-400">Consecutive Failures:</span>
-            <span id="quorum-consecutive" class="text-base font-bold text-emerald-400">0 / 3</span>
-          </div>
-          <div class="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 flex justify-between items-center">
-            <span class="text-slate-400">Signal Domains Required:</span>
-            <span class="font-bold text-slate-200">≥ 2 Independent Classes</span>
-          </div>
-          <div class="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 flex justify-between items-center">
-            <span class="text-slate-400">Flapping Cooldown:</span>
-            <span class="font-bold text-slate-200">60s Dampener Active</span>
-          </div>
-          <div class="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 flex justify-between items-center">
-            <span class="text-slate-400">Maintenance Mode:</span>
-            <button id="maintenance-toggle-btn" onclick="toggleMaintenance()" class="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-bold text-xs hover:bg-slate-600">
-              OFF
-            </button>
-          </div>
-        </div>
-
-        <div class="p-3 bg-slate-950 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-400">
-          💡 <strong>Anti-Flapping Guard:</strong> Requires unanimous sustained failure across L7 application, L4 transport, and push heartbeats before promoting cloud replica.
-        </div>
-      </div>
-
-      <!-- Live Audit Feed -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3 lg:col-span-2 flex flex-col">
-        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
-          <h3 class="text-sm font-bold tracking-wide text-slate-200 uppercase font-mono">Real-Time Audit Stream</h3>
-          <span class="text-[11px] font-mono text-slate-500">JSONL Telemetry</span>
-        </div>
-        <div id="audit-feed" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-3 font-mono text-xs overflow-y-auto max-h-64 space-y-1.5 scrollbar-thin text-slate-300">
-          <div class="text-slate-600">[System] Initializing audit log stream...</div>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <!-- Footer -->
-  <footer class="border-t border-slate-800 bg-slate-900/60 px-6 py-4 mt-auto">
-    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between text-xs font-mono text-slate-500 gap-2">
-      <div>Hybrid DR Orchestrator • Zero Standing Compute ($0.00/mo) • SLA: RTO &le; 15m, RPO &le; 5m</div>
-      <div>Account: 758579869433 • Region: ap-southeast-2</div>
-    </div>
-  </footer>
-
-  <script>
-    let isDryRun = true;
-    let isMaintenance = false;
-
-    async function fetchStatus() {
-      try {
-        const res = await fetch('/api/status');
-        if (!res.ok) return;
-        const data = await res.json();
-        
-        // Update header & metrics
-        document.getElementById('metric-state').innerText = data.state;
-        document.getElementById('step-detail-label').innerText = 'Current: ' + data.state;
-        
-        // Update active site
-        const activeSite = data.fencing_active_site || 'onprem';
-        document.getElementById('nav-active-site').innerText = activeSite.toUpperCase();
-        document.getElementById('nav-active-site').className = activeSite === 'aws' 
-          ? 'text-cyan-400 font-semibold uppercase' 
-          : 'text-emerald-400 font-semibold uppercase';
-
-        // Update dry run
-        isDryRun = data.dry_run;
-        document.getElementById('nav-dry-run').innerText = isDryRun ? 'DRY-RUN SIMULATION' : 'LIVE AWS APPLY';
-        document.getElementById('nav-dry-run').className = isDryRun 
-          ? 'text-amber-400 font-semibold' 
-          : 'text-rose-400 font-semibold animate-pulse';
-
-        // Update stepper highlights
-        const steps = ['IDLE', 'FENCING', 'PROVISIONING', 'RESTORING', 'TESTING', 'CUTOVER', 'COMPLETED'];
-        const currentIdx = steps.indexOf(data.state);
-        document.querySelectorAll('.fsm-step').forEach(el => {
-          const s = el.getAttribute('data-state');
-          const idx = steps.indexOf(s);
-          if (s === data.state) {
-            el.className = 'fsm-step bg-cyan-950 border border-cyan-400 rounded-lg p-2.5 text-center shadow-lg shadow-cyan-950';
-            el.querySelector('div').className = 'text-xs font-mono font-bold text-cyan-300 animate-pulse';
-          } else if (idx < currentIdx && currentIdx !== -1) {
-            el.className = 'fsm-step bg-emerald-950/40 border border-emerald-800/60 rounded-lg p-2.5 text-center';
-            el.querySelector('div').className = 'text-xs font-mono font-bold text-emerald-400';
-          } else {
-            el.className = 'fsm-step bg-slate-800/40 border border-slate-800 rounded-lg p-2.5 text-center';
-            el.querySelector('div').className = 'text-xs font-mono font-bold text-slate-500';
-          }
-        });
-
-        // Update HTTP signal
-        const httpSig = data.signals ? data.signals.find(s => s.name === 'http_healthz') : null;
-        if (httpSig) {
-          const isHealthy = httpSig.status === 'healthy';
-          document.getElementById('signal-http-badge').innerText = isHealthy ? '200 OK' : 'OFFLINE';
-          document.getElementById('signal-http-badge').className = isHealthy 
-            ? 'px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold' 
-            : 'px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800 font-bold';
-          document.getElementById('onprem-status-dot').className = isHealthy ? 'w-2.5 h-2.5 rounded-full bg-emerald-500' : 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping';
-        }
-
-        // Update Quorum
-        if (data.quorum) {
-          document.getElementById('quorum-consecutive').innerText = data.quorum.consecutive_failures + ' / ' + data.quorum.failure_threshold;
-          document.getElementById('quorum-consecutive').className = data.quorum.consecutive_failures > 0 
-            ? 'text-base font-bold text-rose-400 animate-pulse' 
-            : 'text-base font-bold text-emerald-400';
-        }
-
-        // Update Maintenance toggle
-        isMaintenance = data.maintenance_mode;
-        const mBtn = document.getElementById('maintenance-toggle-btn');
-        mBtn.innerText = isMaintenance ? 'ON (LOCKED)' : 'OFF';
-        mBtn.className = isMaintenance 
-          ? 'px-2 py-0.5 rounded bg-amber-600 text-slate-900 font-bold text-xs hover:bg-amber-500' 
-          : 'px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-bold text-xs hover:bg-slate-600';
-
-        // Update AWS Fencing & DNS
-        const fencingVal = data.fencing_active_site || 'onprem';
-        document.getElementById('aws-fencing-badge').innerText = fencingVal.toUpperCase();
-        document.getElementById('aws-fencing-badge').className = fencingVal === 'aws'
-          ? 'px-2 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-800 font-bold'
-          : 'px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 font-bold';
-        
-        document.getElementById('aws-dns-badge').innerText = fencingVal === 'aws' ? 'POINTS: AWS EIP' : 'POINTS: ON-PREM';
-
-        // Update EC2 badge
-        const ec2Badge = document.getElementById('aws-ec2-badge');
-        if (data.state === 'IDLE') {
-          ec2Badge.innerText = 'TERMINATED / $0 COST';
-          ec2Badge.className = 'px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-bold';
-        } else {
-          ec2Badge.innerText = 'PROVISIONED / ACTIVE';
-          ec2Badge.className = 'px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-bold';
-        }
-
-      } catch (e) {
-        console.error("Status fetch error:", e);
-      }
-    }
-
-    async function fetchAudit() {
-      try {
-        const res = await fetch('/api/audit');
-        if (!res.ok) return;
-        const logs = await res.json();
-        const feed = document.getElementById('audit-feed');
-        if (logs.length === 0) return;
-        feed.innerHTML = logs.map(l => {
-          const time = l.timestamp || new Date().toISOString();
-          const event = l.event || 'EVENT';
-          const state = l.state || '';
-          return `<div class="border-b border-slate-900/60 pb-1">
-            <span class="text-slate-500">[${time.substring(11, 19)}]</span>
-            <span class="text-cyan-400 font-bold">${event}</span>
-            <span class="text-emerald-400">${state}</span>
-            <span class="text-slate-400 text-[11px]">${JSON.stringify(l.data || {})}</span>
-          </div>`;
-        }).join('');
-      } catch (e) {
-        console.error("Audit fetch error:", e);
-      }
-    }
-
-    async function triggerDrill() {
-      if (!confirm("Initiate Automated Disaster Recovery Drill (dry_run=" + isDryRun + ")?")) return;
-      try {
-        const res = await fetch('/api/drill', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ dry_run: isDryRun })
-        });
-        const d = await res.json();
-        alert("Drill launched: " + d.message);
-        fetchStatus();
-      } catch (e) { alert("Drill failed: " + e); }
-    }
-
-    async function triggerFailback() {
-      if (!confirm("Initiate Reverse Sync Failback and Teardown AWS Replica?")) return;
-      try {
-        const res = await fetch('/api/failback', { method: 'POST' });
-        const d = await res.json();
-        alert("Failback result: " + d.message);
-        fetchStatus();
-      } catch (e) { alert("Failback error: " + e); }
-    }
-
-    async function injectChaos() {
-      if (!confirm("Simulate catastrophic on-premises blackout?")) return;
-      try {
-        const res = await fetch('/api/chaos/onprem', { method: 'POST' });
-        const d = await res.json();
-        alert(d.message);
-        fetchStatus();
-      } catch (e) { alert("Chaos call failed: " + e); }
-    }
-
-    async function recoverOnprem() {
-      try {
-        const res = await fetch('/api/chaos/recover', { method: 'POST' });
-        const d = await res.json();
-        alert(d.message);
-        fetchStatus();
-      } catch (e) { alert("Recover call failed: " + e); }
-    }
-
-    async function toggleMaintenance() {
-      const next = !isMaintenance;
-      try {
-        const res = await fetch('/api/maintenance', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ enabled: next })
-        });
-        const d = await res.json();
-        isMaintenance = d.maintenance_mode;
-        fetchStatus();
-      } catch (e) { alert("Toggle failed: " + e); }
-    }
-
-    function toggleRoadmapModal(show) {
-      const modal = document.getElementById('roadmap-modal');
-      if (show) {
-        modal.classList.remove('hidden');
-      } else {
-        modal.classList.add('hidden');
-      }
-    }
-
-    // Auto-refresh loop
-    fetchStatus();
-    fetchAudit();
-    setInterval(fetchStatus, 2500);
-    setInterval(fetchAudit, 4000);
-  </script>
-
-  <!-- Enterprise Roadmap Modal -->
-  <div id="roadmap-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-      <!-- Modal Header -->
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-850">
-        <div class="flex items-center gap-2">
-          <span class="text-xl">📐</span>
-          <h2 class="text-base font-bold font-mono tracking-wide text-slate-100 uppercase">
-            Enterprise Evolution Strategy & Architectural Roadmap
-          </h2>
-        </div>
-        <button onclick="toggleRoadmapModal(false)" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 py-1">
-          ✕
+      <!-- Command Center -->
+      <div class="cmd-section">
+        <div class="cmd-section-title">Command Center</div>
+        <button class="cmd-btn" onclick="triggerDrill(true)">
+          Execute Dry-Run Drill
+          <span class="arrow">→</span>
         </button>
+        <div class="live-drill-box">
+          <div class="title">Live AWS Drill</div>
+          <div class="desc">Provisions real billable AWS resources.</div>
+          <div class="live-drill-row">
+            <input type="text" class="live-drill-input" id="live-confirm" placeholder="Type CONFIRM to enable">
+            <button class="live-drill-go" onclick="triggerLiveDrill()">EXECUTE</button>
+          </div>
+        </div>
       </div>
 
-      <!-- Modal Body -->
-      <div class="p-6 overflow-y-auto space-y-6 text-sm text-slate-300 font-sans scrollbar-thin">
-        <div class="bg-cyan-950/40 border border-cyan-800/80 rounded-xl p-4 text-xs font-mono text-cyan-200">
-          🎯 <strong>Target SLA Evolution:</strong> RTO &le; 3 minutes (from ~21m cold / ~7m warm), RPO &le; 5 seconds (from ~290s asynchronous WAL), 99.99% multi-region cloud control plane.
+      <div class="cmd-section" style="display: flex; gap: 8px; padding-top: 0;">
+        <button class="cmd-btn-sm" onclick="triggerChaos()">💥 Inject Blackout</button>
+        <button class="cmd-btn-sm" onclick="recoverChaos()">🔄 Recover</button>
+        <button class="cmd-btn-sm" onclick="triggerFailback()">⏪ Failback</button>
+      </div>
+
+      <!-- Live Terminal -->
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dots">
+            <div class="terminal-dot r"></div>
+            <div class="terminal-dot y"></div>
+            <div class="terminal-dot g"></div>
+          </div>
+          <div class="terminal-title">orchestrator — live execution log</div>
         </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <!-- Item 1 -->
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-            <div class="font-mono text-cyan-400 font-bold text-xs flex items-center gap-1.5">
-              <span>1.</span> AWS Elastic Disaster Recovery (DRS)
-            </div>
-            <p class="text-xs text-slate-400">
-              Replace on-demand Terraform compute creation with continuous block-level storage replication via AWS DRS agents. Drops compute launch RTO to &lt;2 minutes and compute RPO to sub-seconds.
-            </p>
+        <div class="terminal-body" id="terminal-body">
+          <div id="terminal-content">
+            <div class="t-line"><span class="t-ts">[init]</span><span class="t-msg" style="color: var(--text-dim);">Connected to orchestrator SSE stream. Awaiting events...</span></div>
+            <div class="t-line" id="cursor-line"><span class="t-ts"></span><span class="t-cursor"></span></div>
           </div>
-
-          <!-- Item 2 -->
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-            <div class="font-mono text-emerald-400 font-bold text-xs flex items-center gap-1.5">
-              <span>2.</span> Continuous CDC (AWS DMS & Aurora Serverless)
-            </div>
-            <p class="text-xs text-slate-400">
-              Evolve from S3 WAL log shipping to continuous Change Data Capture (CDC) via AWS DMS streaming to an Amazon Aurora PostgreSQL Serverless v2 pilot light (0.5 ACU). Drops database RTO to &lt;15 seconds.
-            </p>
-          </div>
-
-          <!-- Item 3 -->
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-            <div class="font-mono text-purple-400 font-bold text-xs flex items-center gap-1.5">
-              <span>3.</span> AWS Step Functions State Machine
-            </div>
-            <p class="text-xs text-slate-400">
-              Migrate the Python orchestrator into a cloud-native AWS Step Functions state machine. Native exponential backoff, circuit breaking, visual execution tracking, and zero local single point of failure (SPOF).
-            </p>
-          </div>
-
-          <!-- Item 4 -->
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-            <div class="font-mono text-amber-400 font-bold text-xs flex items-center gap-1.5">
-              <span>4.</span> Route 53 Application Recovery Controller (ARC)
-            </div>
-            <p class="text-xs text-slate-400">
-              Implement ARC Routing Controls for sub-second DNS traffic shifting and Readiness Checks to continuously audit target cloud capacity and replication lag before authorizing failover.
-            </p>
-          </div>
-
-          <!-- Item 5 -->
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-            <div class="font-mono text-blue-400 font-bold text-xs flex items-center gap-1.5">
-              <span>5.</span> Native Reverse Replication Failback
-            </div>
-            <p class="text-xs text-slate-400">
-              Leverage native DRS reverse block replication and reverse DMS CDC streams to synchronize delta writes back to on-premises while AWS is live, reducing write-freeze downtime to &lt;1.5 seconds.
-            </p>
-          </div>
-
-          <!-- Item 6 -->
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-            <div class="font-mono text-rose-400 font-bold text-xs flex items-center gap-1.5">
-              <span>6.</span> AWS Fault Injection Service (FIS) & Chaos
-            </div>
-            <p class="text-xs text-slate-400">
-              Transition from local bash chaos scripts to AWS FIS and Chaos Mesh to execute automated GameDays in CI with synthetic network blackholes and AWS API latency injection.
-            </p>
-          </div>
-        </div>
-
-        <div class="border-t border-slate-800 pt-4 text-xs font-mono text-slate-500 flex justify-between items-center">
-          <span>Read full document: <code class="text-cyan-400">docs/dr-enhancements.md</code></span>
-          <button onclick="toggleRoadmapModal(false)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-1.5 rounded-lg border border-slate-700">
-            Close
-          </button>
         </div>
       </div>
     </div>
   </div>
+
+  <script>
+    // ─── SSE LOG STREAMING ───
+    let sse = null;
+    function connectSSE() {
+      if (sse) sse.close();
+      sse = new EventSource('/api/logs');
+      sse.onmessage = (e) => {
+        const data = e.data;
+        if (!data || data === ': keepalive' || data === ': ping') return;
+        appendLog(data);
+      };
+      sse.onerror = () => { sse.close(); setTimeout(connectSSE, 3000); };
+    }
+
+    function stripAnsi(str) {
+      if (!str) return '';
+      return str
+        .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+        .replace(/\x1b\([a-zA-Z]/g, '')
+        .replace(/\[\d+;?\d*m/g, '')
+        .replace(/\[0m/g, '')
+        .replace(/\[1m/g, '')
+        .trim();
+    }
+
+    function appendLog(msg) {
+      const content = document.getElementById('terminal-content');
+      const body = document.getElementById('terminal-body');
+      if (!content || !body) return;
+
+      msg = stripAnsi(msg);
+      if (!msg) return;
+
+      const line = document.createElement('div');
+      line.className = 't-line';
+
+      const ts = document.createElement('span');
+      ts.className = 't-ts';
+      const now = new Date();
+      ts.textContent = `[${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}]`;
+
+      const m = document.createElement('span');
+      m.className = 't-msg';
+
+      // Classify the message for color coding
+      if (msg.includes('─') || msg.includes('═══') || msg.includes('DRILL INITIATED') || msg.includes('DRILL COMPLETE')) {
+        m.classList.add('banner');
+      } else if (msg.includes('TRANSITION_')) {
+        m.classList.add('transition');
+      } else if (msg.includes('CHAOS') || msg.includes('ERROR') || msg.includes('FAILED') || msg.includes('fatal:') || msg.includes('[err]')) {
+        m.classList.add('err');
+      } else if (msg.includes('DRY_RUN') || msg.includes('[DRY-RUN]') || msg.includes('ok:')) {
+        m.classList.add('ok');
+      } else if (msg.includes('FAILBACK') || msg.includes('WARNING') || msg.includes('⚠')) {
+        m.classList.add('warn');
+      } else if (msg.includes('COMMAND_EXECUTED') || msg.includes('Apply complete') || msg.includes('[user]')) {
+        m.classList.add('info');
+      }
+
+      m.textContent = msg;
+      line.appendChild(ts);
+      line.appendChild(m);
+
+      const cursorLine = document.getElementById('cursor-line');
+      if (cursorLine && cursorLine.parentNode === content) {
+        content.insertBefore(line, cursorLine);
+      } else {
+        content.appendChild(line);
+      }
+      body.scrollTop = body.scrollHeight;
+    }
+
+    connectSSE();
+
+    // ─── API ACTIONS ───
+    async function triggerDrill(dryRun) {
+      appendLog(`[user] Triggered ${dryRun ? 'Dry-Run Simulation Drill' : 'Live AWS Drill'}...`);
+      try {
+        const res = await fetch('/api/drill', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ dry_run: dryRun }) });
+        const d = await res.json();
+        appendLog(`[sys] Drill request status: ${d.status}`);
+      } catch (err) {
+        appendLog(`[err] Failed to trigger drill: ${err.message}`);
+      }
+      fetchStatus();
+    }
+    function triggerLiveDrill() {
+      const input = document.getElementById('live-confirm');
+      const v = input.value.trim().toUpperCase();
+      if (v === 'CONFIRM') {
+        input.value = '';
+        triggerDrill(false);
+      } else {
+        appendLog('⚠ Confirmation required: Type CONFIRM in the input box before executing live AWS drill.');
+      }
+    }
+    async function triggerChaos() {
+      appendLog('[user] Injected Catastrophic Blackout Chaos.');
+      try {
+        await fetch('/api/chaos/onprem', {method: 'POST'});
+      } catch (err) {
+        appendLog(`[err] Chaos API error: ${err.message}`);
+      }
+      fetchStatus();
+    }
+    async function recoverChaos() {
+      appendLog('[user] Cleared Blackout / Restored On-Prem.');
+      try {
+        await fetch('/api/chaos/recover', {method: 'POST'});
+      } catch (err) {
+        appendLog(`[err] Recover API error: ${err.message}`);
+      }
+      fetchStatus();
+    }
+    async function triggerFailback() {
+      appendLog('[user] Initiating Failback and AWS Teardown...');
+      try {
+        const res = await fetch('/api/failback', {method: 'POST'});
+        const d = await res.json();
+        appendLog(`[sys] Failback response: ${d.message}`);
+      } catch (err) {
+        appendLog(`[err] Failback API error: ${err.message}`);
+      }
+      fetchStatus();
+    }
+
+    // ─── LATENCY CHART ───
+    let history = [];
+    const maxPts = 50;
+
+    function renderChart() {
+      const canvas = document.getElementById('chart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      const w = rect.width, h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // Grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.lineWidth = 1;
+      for (let y = 20; y < h; y += 25) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+      if (history.length < 2) return;
+      let mx = 50;
+      history.forEach(p => mx = Math.max(mx, p.h||0, p.t||0, p.s||0));
+      mx *= 1.3;
+
+      function draw(key, color) {
+        ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
+        const step = w / (maxPts - 1);
+        const start = Math.max(0, history.length - maxPts);
+        const pts = history.slice(start);
+        pts.forEach((p, i) => {
+          const x = i * step;
+          const y = h - ((p[key]||0) / mx) * (h - 15) - 5;
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+      draw('h', '#34D399');
+      draw('t', '#22D3EE');
+      draw('s', '#A78BFA');
+    }
+    window.addEventListener('resize', renderChart);
+
+    // ─── STATUS POLLING ───
+    function fmt(s) {
+      const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = Math.floor(s%60);
+      return [h,m,sec].map(v => String(v).padStart(2,'0')).join(':');
+    }
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const d = await res.json();
+
+        // Header
+        document.getElementById('hd-uptime').textContent = fmt(d.kpis.uptime_seconds);
+        const site = d.kpis.active_site || 'onprem';
+        document.getElementById('hd-leader').textContent = site.toUpperCase();
+
+        const stateEl = document.getElementById('hd-state');
+        stateEl.textContent = d.state;
+        stateEl.className = 'state-chip ' + (
+          d.state === 'IDLE' ? 'idle' :
+          d.state === 'COMPLETED' ? 'active' :
+          d.state === 'FAILED_NEEDS_HUMAN' ? 'danger' : 'warning'
+        );
+
+        // Global dot
+        const dot = document.getElementById('global-dot');
+        if (site === 'failing') {
+          dot.style.background = 'var(--rose)';
+          dot.style.boxShadow = '0 0 8px var(--rose), 0 0 20px rgba(251,113,133,0.3)';
+        } else {
+          dot.style.background = 'var(--emerald)';
+          dot.style.boxShadow = '0 0 8px var(--emerald), 0 0 20px rgba(52,211,153,0.3)';
+        }
+
+        // Quorum
+        const fails = d.quorum.consecutive_failures;
+        const qEl = document.getElementById('kpi-quorum');
+        qEl.innerHTML = `${fails}<span style="font-size: 14px; color: var(--text-dim); font-weight: 400;"> / ${d.quorum.failure_threshold}</span>`;
+        qEl.style.color = fails > 0 ? 'var(--rose)' : 'var(--emerald)';
+        document.getElementById('kpi-quorum-label').textContent = fails > 0 ? `${fails} consecutive failure(s)` : 'All signals healthy';
+
+        // Signals
+        let hMs = 0, tMs = 0, sMs = 0;
+        d.signals.forEach(sig => {
+          const ok = sig.status === 'healthy';
+          if (sig.signal_class === 'http') {
+            hMs = sig.latency_ms;
+            ['sig-http', 'sr-http'].forEach(id => { document.getElementById(id).className = 'signal-dot ' + (ok ? 'ok' : 'fail'); });
+            document.getElementById('sr-http-ms').textContent = ok ? `${hMs.toFixed(1)} ms` : 'FAIL';
+          } else if (sig.signal_class === 'tcp') {
+            tMs = sig.latency_ms;
+            ['sig-tcp', 'sr-tcp'].forEach(id => { document.getElementById(id).className = 'signal-dot ' + (ok ? 'ok' : 'fail'); });
+            document.getElementById('sr-tcp-ms').textContent = ok ? `${tMs.toFixed(1)} ms` : 'FAIL';
+          } else if (sig.signal_class === 'heartbeat') {
+            sMs = sig.latency_ms;
+            ['sig-ssm', 'sr-ssm'].forEach(id => { document.getElementById(id).className = 'signal-dot ' + (ok ? 'ok' : 'fail'); });
+            document.getElementById('sr-ssm-ms').textContent = `${sMs.toFixed(1)} ms`;
+          }
+        });
+        history.push({h: hMs, t: tMs, s: sMs});
+        if (history.length > maxPts) history.shift();
+        renderChart();
+
+        // Topology
+        const onp = document.getElementById('node-onprem');
+        const aws = document.getElementById('node-aws');
+        const flow = document.getElementById('topo-flow');
+
+        if (site === 'aws') {
+          onp.className = 'topo-node standby';
+          document.getElementById('badge-onprem').textContent = 'OFFLINE';
+          aws.className = 'topo-node active-aws';
+          document.getElementById('badge-aws').textContent = 'ACTIVE LEADER';
+          flow.className = 'topo-line-active cyan';
+        } else if (site === 'failing') {
+          onp.className = 'topo-node failing';
+          document.getElementById('badge-onprem').textContent = 'BLACKOUT';
+          aws.className = 'topo-node standby';
+          document.getElementById('badge-aws').textContent = 'WARM STANDBY';
+          flow.className = 'topo-line-active rose';
+        } else {
+          onp.className = 'topo-node primary';
+          document.getElementById('badge-onprem').textContent = 'ACTIVE LEADER';
+          aws.className = 'topo-node standby';
+          document.getElementById('badge-aws').textContent = 'WARM STANDBY';
+          flow.className = 'topo-line-active emerald';
+        }
+
+        // FSM Stepper
+        const steps = ['IDLE', 'FENCING', 'PROVISIONING', 'RESTORING', 'TESTING', 'CUTOVER', 'COMPLETED'];
+        const ci = steps.indexOf(d.state);
+        document.querySelectorAll('.fsm-step').forEach(el => {
+          const s = el.getAttribute('data-state');
+          const i = steps.indexOf(s);
+          if (s === d.state) el.className = 'fsm-step current';
+          else if (i < ci && ci !== -1) el.className = 'fsm-step done';
+          else el.className = 'fsm-step';
+        });
+        document.getElementById('fsm-detail').textContent = `Stage ${Math.max(1, ci+1)}/7 — ${d.state}`;
+
+        // Cost
+        document.getElementById('kpi-cost').textContent = d.state === 'IDLE' ? '$0.00' : '~$0.034/hr';
+
+      } catch(e) { console.error(e); }
+    }
+
+    setInterval(fetchStatus, 1000);
+    fetchStatus();
+  </script>
 </body>
 </html>

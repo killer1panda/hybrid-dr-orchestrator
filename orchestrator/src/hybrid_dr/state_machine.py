@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None  # type: ignore
+
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None  # type: ignore
+
 import json
 import os
 import tempfile
@@ -53,7 +62,7 @@ class FileStateStorage:
 
 
 class FileLeaderLock:
-    """Non-blocking file-based leader lock using fcntl."""
+    """Non-blocking file-based leader lock using fcntl or msvcrt on Windows."""
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -66,13 +75,19 @@ class FileLeaderLock:
             return True
         try:
             fd = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if fcntl is not None:
+                fcntl_flock = getattr(fcntl, "flock")
+                fcntl_lock_ex = getattr(fcntl, "LOCK_EX")
+                fcntl_lock_nb = getattr(fcntl, "LOCK_NB")
+                fcntl_flock(fd, fcntl_lock_ex | fcntl_lock_nb)
+            elif msvcrt is not None:
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
             self._fd = fd
             return True
         except (BlockingIOError, OSError) as e:
             import errno
 
-            if e.errno in (errno.EACCES, errno.EAGAIN):
+            if e.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
                 return False
             raise
 
@@ -80,7 +95,15 @@ class FileLeaderLock:
         """Release lock and close descriptor."""
         if self._fd is not None:
             try:
-                fcntl.flock(self._fd, fcntl.LOCK_UN)
+                if fcntl is not None:
+                    fcntl_flock = getattr(fcntl, "flock")
+                    fcntl_lock_un = getattr(fcntl, "LOCK_UN")
+                    fcntl_flock(self._fd, fcntl_lock_un)
+                elif msvcrt is not None:
+                    try:
+                        msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
+                    except OSError:
+                        pass
                 os.close(self._fd)
             except OSError:
                 pass
